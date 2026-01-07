@@ -15,11 +15,12 @@ import WeeklyAnalysisTable from '../components/WeeklyAnalysisTable.jsx'
 import InsightsBanner from '../components/InsightsBanner.jsx'
 
 function titleCycle(type) {
-  if (type === 'cut') return 'Cut'
-  if (type === 'bulk') return 'Bulk'
-  if (type === 'maintain') return 'Maintain'
+  if (type === 'cut' || type === 'cutting') return 'Cutting'
+  if (type === 'bulk' || type === 'bulking') return 'Bulking'
+  if (type === 'maintain' || type === 'maintaining') return 'Maintaining'
   return String(type || '')
 }
+
 
 function fmt(n, d=1) {
   if (!Number.isFinite(n)) return '—'
@@ -49,7 +50,7 @@ export default function Dashboard({ view = 'dashboard' }) {
 
   const demoCycles = useMemo(() => {
     if (!demoEntries?.length) return []
-    return [{ id: 'demo', type: 'cut', startDateIso: demoEntries[0].dateIso, endDateIso: null }]
+    return [{ id: 'demo', type: 'cutting', targetWeightKg: 84, startDateIso: demoEntries[0].dateIso, endDateIso: null }]
   }, [demoEntries])
 
   const activeProfile = user ? profile : demoProfile
@@ -129,7 +130,7 @@ export default function Dashboard({ view = 'dashboard' }) {
       {error && <div className="notice error" style={{ marginTop: 14 }}>{error}</div>}
 
       {view === 'insights' && (
-        <InsightsBanner derived={derived} weekly={weekly} profile={activeProfile || {}} />
+        <InsightsBanner derived={derived} weekly={weekly} profile={activeProfile || {}} currentCycle={currentCycle} />
       )}
 
       <div className="panel">

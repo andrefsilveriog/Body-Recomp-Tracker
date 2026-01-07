@@ -9,21 +9,30 @@ import { db } from '../firebase.js'
 import { addDaysIso } from '../utils/date.js'
 
 function isValidType(type) {
-  return ['cut', 'bulk', 'maintain'].includes(type)
+  return ['cutting', 'bulking', 'maintaining', 'cut', 'bulk', 'maintain'].includes(type)
 }
 
+function normalizeType(type) {
+  if (type === 'cut') return 'cutting'
+  if (type === 'bulk') return 'bulking'
+  if (type === 'maintain') return 'maintaining'
+  return type
+}
 function normalizeCycles(raw) {
   if (!Array.isArray(raw)) return []
   return raw
-    .filter((c) => c && typeof c === 'object')
+    .filter((c) => c && c.id)
     .map((c) => ({
-      id: String(c.id || ''),
-      type: String(c.type || ''),
-      startDateIso: c.startDateIso || '',
-      endDateIso: c.endDateIso ?? null,
+      id: String(c.id),
+      type: normalizeType(c.type),
+      startDateIso: c.startDateIso || null,
+      endDateIso: c.endDateIso || null,
+      targetWeightKg: Number.isFinite(Number(c.targetWeightKg)) ? Number(c.targetWeightKg) : null,
     }))
-    .filter((c) => c.id && isValidType(c.type) && c.startDateIso)
+    .filter((c) => isValidType(c.type))
+    .sort((a, b) => String(a.startDateIso || '').localeCompare(String(b.startDateIso || '')))
 }
+
 
 function newId() {
   // deterministic enough for small personal use; avoids needing a subcollection
@@ -47,10 +56,18 @@ export function listenCycles(userId, onData, onError) {
   )
 }
 
-export async function startCycle(userId, { type, startDateIso }) {
+export async function startCycle(userId, { type, startDateIso, targetWeightKg }) {
   if (!userId) throw new Error('Not authenticated')
   if (!isValidType(type)) throw new Error('Invalid cycle type')
+  type = normalizeType(type)
   if (!startDateIso) throw new Error('Start date is required')
+
+  let target = null
+  if (type === 'cutting' || type === 'bulking') {
+    target = Number(targetWeightKg)
+    if (!Number.isFinite(target) || target <= 0) throw new Error('Cycle target weight must be a positive number (kg).')
+  }
+
 
   const ref = doc(db, 'users', userId)
 
@@ -76,6 +93,7 @@ export async function startCycle(userId, { type, startDateIso }) {
       type,
       startDateIso,
       endDateIso: null,
+      targetWeightKg: target,
     })
 
     tx.update(ref, {

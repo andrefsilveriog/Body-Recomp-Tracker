@@ -12,11 +12,12 @@ import { todayIso } from '../utils/date.js'
 const DEFAULT_LIFTS = ['Bench Press', 'Squat', 'Deadlift']
 
 function titleCycle(type) {
-  if (type === 'cut') return 'Cut'
-  if (type === 'bulk') return 'Bulk'
-  if (type === 'maintain') return 'Maintain'
+  if (type === 'cut' || type === 'cutting') return 'Cutting'
+  if (type === 'bulk' || type === 'bulking') return 'Bulking'
+  if (type === 'maintain' || type === 'maintaining') return 'Maintaining'
   return String(type || '')
 }
+
 
 export default function Profile() {
   const { user } = useAuth()
@@ -25,7 +26,6 @@ export default function Profile() {
 
   const [sex, setSex] = useState(profile.sex || '')
   const [height, setHeight] = useState(profile.height || '')
-  const [targetWeight, setTargetWeight] = useState(profile.targetWeight ?? '')
   const [triple, setTriple] = useState(!!profile.triplemeasurements)
 
   const initialLiftNames = (Array.isArray(profile.liftNames) && profile.liftNames.length === 3)
@@ -47,8 +47,13 @@ export default function Profile() {
   const cycles = useMemo(() => {
     return Array.isArray(profile.cycles) ? [...profile.cycles].sort((a, b) => String(b.startDateIso||'').localeCompare(String(a.startDateIso||''))) : []
   }, [profile.cycles])
-  const [cycleType, setCycleType] = useState('cut')
+  const [cycleType, setCycleType] = useState('cutting')
   const [cycleStart, setCycleStart] = useState(todayIso())
+  const [cycleTarget, setCycleTarget] = useState('')
+
+  useEffect(() => {
+    if (cycleType === 'maintaining') setCycleTarget('')
+  }, [cycleType])
 
   const activeCycle = useMemo(() => {
     return cycles.find((c) => !c.endDateIso) || null
@@ -61,7 +66,6 @@ export default function Profile() {
   useEffect(() => {
     setSex(profile.sex || '')
     setHeight(profile.height || '')
-    setTargetWeight(profile.targetWeight ?? '')
     setTriple(!!profile.triplemeasurements)
 
     const ln = (Array.isArray(profile.liftNames) && profile.liftNames.length === 3)
@@ -70,7 +74,7 @@ export default function Profile() {
     setLift1(ln[0])
     setLift2(ln[1])
     setLift3(ln[2])
-  }, [profile.sex, profile.height, profile.targetWeight, profile.triplemeasurements, profile.liftNames])
+  }, [profile.sex, profile.height, profile.triplemeasurements, profile.liftNames])
 
 
   useEffect(() => {
@@ -94,21 +98,9 @@ export default function Profile() {
       if (!sex) throw new Error('Sex is required.')
       if (!Number.isFinite(h) || h <= 0) throw new Error('Height must be a positive number (cm).')
 
-      let tw = null
-      if (String(targetWeight).trim() !== '') {
-        tw = Number(targetWeight)
-        if (!Number.isFinite(tw) || tw <= 0) throw new Error('Target weight must be a positive number (kg).')
-      }
-
-      const liftNames = [lift1, lift2, lift3].map((s, i) => {
-        const v = String(s ?? '').trim()
-        return v || DEFAULT_LIFTS[i]
-      })
-
       await updateProfile({
         sex,
         height: h,
-        targetWeight: tw,
         triplemeasurements: !!triple,
         liftNames,
       })
@@ -128,8 +120,26 @@ export default function Profile() {
     try {
       if (!cycleType) throw new Error('Pick a cycle type.')
       if (!cycleStart) throw new Error('Pick a start date.')
+      // Cycle target validation
+      const latestWeight = [...entries]
+        .reverse()
+        .find((e) => Number.isFinite(Number(e?.weight)))?.weight
 
-      await startCycle(user.uid, { type: cycleType, startDateIso: cycleStart })
+      if (cycleType === 'cutting' || cycleType === 'bulking') {
+        const tw = Number(cycleTarget)
+        if (!Number.isFinite(tw) || tw <= 0) throw new Error('Enter a valid target weight (kg).')
+
+        if (Number.isFinite(Number(latestWeight))) {
+          if (cycleType === 'cutting' && tw >= Number(latestWeight)) {
+            throw new Error('For a cutting cycle, target weight must be lower than your current weight.')
+          }
+          if (cycleType === 'bulking' && tw <= Number(latestWeight)) {
+            throw new Error('For a bulking cycle, target weight must be higher than your current weight.')
+          }
+        }
+      }
+
+      await startCycle(user.uid, { type: cycleType, startDateIso: cycleStart, targetWeightKg: cycleTarget })
 
       setMsg({ type: 'success', text: `Cycle started: ${titleCycle(cycleType)}.` })
     } catch (err) {
@@ -244,12 +254,6 @@ export default function Profile() {
               <label>Height (cm)</label>
               <input inputMode="numeric" value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 175" required />
             </div>
-
-            <div className="field">
-              <label>Target weight (kg) (optional)</label>
-              <input inputMode="numeric" value={targetWeight} onChange={(e) => setTargetWeight(e.target.value)} placeholder="e.g. 82" />
-            </div>
-
             <div className="field">
               <label>Triple measurements mode</label>
               <select value={triple ? '1' : '0'} onChange={(e) => setTriple(e.target.value === '1')}>
@@ -284,7 +288,7 @@ export default function Profile() {
       <div className="panel" id="cycles">
         <div className="panel-header">
           <h2>Cycles</h2>
-          <div className="muted">Cut / Bulk / Maintain — track your phases over time.</div>
+          <div className="muted">Cutting / Bulking / Maintaining — track your phases over time.</div>
         </div>
 
         {/* cycles are stored in the profile doc; no extra Firestore rules needed */}
@@ -294,9 +298,9 @@ export default function Profile() {
             <div className="field">
               <label>Cycle type</label>
               <select value={cycleType} onChange={(e) => setCycleType(e.target.value)}>
-                <option value="cut">Cut</option>
-                <option value="bulk">Bulk</option>
-                <option value="maintain">Maintain</option>
+                <option value="cutting">Cutting</option>
+                <option value="bulking">Bulking</option>
+                <option value="maintaining">Maintaining</option>
               </select>
             </div>
 
@@ -307,7 +311,7 @@ export default function Profile() {
 
             <div className="field" style={{ minWidth: 220 }}>
               <label>Current</label>
-              <input value={activeCycle ? `${titleCycle(activeCycle.type)} (since ${activeCycle.startDateIso})` : 'No active cycle'} readOnly />
+              <input value={activeCycle ? `${titleCycle(activeCycle.type)} (since ${activeCycle.startDateIso})${(activeCycle.type === 'cutting' || activeCycle.type === 'bulking') && Number.isFinite(Number(activeCycle.targetWeightKg)) ? ` · target ${Number(activeCycle.targetWeightKg).toFixed(1)}kg` : ''}` : 'No active cycle'} readOnly />
             </div>
           </div>
 
@@ -345,6 +349,7 @@ export default function Profile() {
                   return (
                     <tr key={c.id}>
                       <td><b>{titleCycle(c.type)}</b></td>
+                      <td>{(c.type === 'cutting' || c.type === 'bulking') && Number.isFinite(Number(c.targetWeightKg)) ? Number(c.targetWeightKg).toFixed(1) : '—'}</td>
                       <td>{c.startDateIso || '—'}</td>
                       <td>{c.endDateIso || '—'}</td>
                       <td>

@@ -9,12 +9,34 @@ const DEFAULT_PROFILE = {
   email: '',
   sex: '',
   height: '',
-  targetWeight: '',
   triplemeasurements: false,
   liftNames: ['Bench Press','Squat','Deadlift'],
   cycles: [],
   createdAt: null,
 }
+
+
+function normalizeCycleType(type) {
+  if (type === 'cut') return 'cutting'
+  if (type === 'bulk') return 'bulking'
+  if (type === 'maintain') return 'maintaining'
+  return type
+}
+
+function normalizeCycles(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((c) => c && c.id)
+    .map((c) => ({
+      id: String(c.id),
+      type: normalizeCycleType(c.type),
+      startDateIso: c.startDateIso || null,
+      endDateIso: c.endDateIso || null,
+      targetWeightKg: Number.isFinite(Number(c.targetWeightKg)) ? Number(c.targetWeightKg) : null,
+    }))
+    .sort((a, b) => String(b.startDateIso || '').localeCompare(String(a.startDateIso || '')))
+}
+
 
 export function ProfileProvider({ children }) {
   const { user } = useAuth()
@@ -37,7 +59,6 @@ export function ProfileProvider({ children }) {
           email: user.email || '',
           sex: '',
           height: '',
-          targetWeight: null,
           triplemeasurements: false,
           liftNames: ['Bench Press','Squat','Deadlift'],
           cycles: [],
@@ -50,10 +71,9 @@ export function ProfileProvider({ children }) {
         email: data.email || user.email || '',
         sex: data.sex || '',
         height: data.height || '',
-        targetWeight: (data.targetWeight ?? ''),
         triplemeasurements: !!data.triplemeasurements,
         liftNames: (Array.isArray(data.liftNames) && data.liftNames.length===3) ? data.liftNames : ['Bench Press','Squat','Deadlift'],
-        cycles: Array.isArray(data.cycles) ? data.cycles : [],
+        cycles: normalizeCycles(data.cycles),
         createdAt: data.createdAt || null,
       })
       setLoading(false)

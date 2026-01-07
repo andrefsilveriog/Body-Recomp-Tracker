@@ -31,7 +31,7 @@ function classForLevel(level) {
   return 'info'
 }
 
-export default function InsightsBanner({ derived, weekly, profile }) {
+export default function InsightsBanner({ derived, weekly, profile, currentCycle }) {
   const insights = useMemo(() => {
     if (!derived?.length) return []
     const last = derived[derived.length - 1]
@@ -237,24 +237,42 @@ export default function InsightsBanner({ derived, weekly, profile }) {
       }
     }
 
-    // 9) Progress milestone (if target weight set)
-    const target = Number(profile?.targetWeight)
-    if (Number.isFinite(target) && Number.isFinite(derived[0]?.weight) && Number.isFinite(currentWeight)) {
-      const startW = derived[0].weight
-      if (startW > target) {
-        const lost = startW - currentWeight
-        const totalToLose = startW - target
-        const pctToGoal = Math.max(0, Math.min(1, lost / totalToLose)) * 100
-        const milestone = Math.floor(lost / 5) * 5
-        if (milestone >= 5) {
-          out.push({
-            key: 'milestone',
-            level: 'good',
-            title: 'Progress milestone',
-            message: `${fmt(milestone, 0)}kg down! You’re ${fmt(pctToGoal, 0)}% to your goal.`,
-            action: null,
-          })
+    // 9) Progress milestone (cycle target)
+    const cycleTarget = Number(currentCycle?.targetWeightKg)
+    if ((currentCycle?.type === 'cutting' || currentCycle?.type === 'bulking') && Number.isFinite(cycleTarget) && derived.length >= 2) {
+      const startPoint = derived.find((d) => d.dateIso >= currentCycle.startDateIso) || derived[0]
+      const startW = Number(startPoint?.weight)
+      const currentWeight = Number(derived[derived.length - 1]?.weight)
+
+      if (Number.isFinite(startW) && Number.isFinite(currentWeight)) {
+        if (currentCycle.type === 'cutting' && startW > cycleTarget) {
+          const lost = startW - currentWeight
+          const totalToChange = startW - cycleTarget
+          const pctToGoal = Math.max(0, Math.min(1, lost / totalToChange)) * 100
+          if (lost >= 1) {
+            out.push({
+              level: 'good',
+              title: 'Progress milestone',
+              message: `${fmt(lost, 1)}kg down since cycle start — ${fmt(pctToGoal, 0)}% to target.`,
+              action: null,
+            })
+          }
         }
+        if (currentCycle.type === 'bulking' && startW < cycleTarget) {
+          const gained = currentWeight - startW
+          const totalToChange = cycleTarget - startW
+          const pctToGoal = Math.max(0, Math.min(1, gained / totalToChange)) * 100
+          if (gained >= 1) {
+            out.push({
+              level: 'good',
+              title: 'Progress milestone',
+              message: `${fmt(gained, 1)}kg up since cycle start — ${fmt(pctToGoal, 0)}% to target.`,
+              action: null,
+            })
+          }
+        }
+      }
+    }
       }
     }
 
