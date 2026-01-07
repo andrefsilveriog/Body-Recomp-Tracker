@@ -12,8 +12,9 @@ function parseMaybeNumber(v) {
   return Number.isFinite(n) ? n : null
 }
 
-export default function EntryTable({ userId, entries, tripleEnabled, liftNames }) {
+export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNames }) {
   const [saving, setSaving] = useState(false)
+  const isFemale = String(sex || '').toLowerCase() === 'female'
   const ln = Array.isArray(liftNames) && liftNames.length === 3 ? liftNames : ['Bench Press','Squat','Deadlift']
   const [msg, setMsg] = useState(null)
 
@@ -30,18 +31,23 @@ export default function EntryTable({ userId, entries, tripleEnabled, liftNames }
     ]
 
     if (!tripleEnabled) {
-      base.push({ key: 'neck', label: 'Neck' }, { key: 'waist', label: 'Waist' }, { key: 'hip', label: 'Hip' })
+      base.push({ key: 'neck', label: 'Neck' }, { key: 'waist', label: 'Waist' })
+      if (isFemale) base.push({ key: 'hip', label: 'Hip' })
     } else {
       base.push(
         { key: 'neck1', label: 'Neck1' }, { key: 'neck2', label: 'Neck2' }, { key: 'neck3', label: 'Neck3' },
         { key: 'waist1', label: 'Waist1' }, { key: 'waist2', label: 'Waist2' }, { key: 'waist3', label: 'Waist3' },
-        { key: 'hip1', label: 'Hip1' }, { key: 'hip2', label: 'Hip2' }, { key: 'hip3', label: 'Hip3' },
       )
+      if (isFemale) {
+        base.push(
+          { key: 'hip1', label: 'Hip1' }, { key: 'hip2', label: 'Hip2' }, { key: 'hip3', label: 'Hip3' },
+        )
+      }
     }
 
     base.push({ key: '_actions', label: 'Actions', readOnly: true })
     return base
-  }, [tripleEnabled, liftNames])
+  }, [tripleEnabled, liftNames, sex])
 
   async function saveCell(dateIso, key, value) {
     if (key === 'dateIso' || key === '_actions') return

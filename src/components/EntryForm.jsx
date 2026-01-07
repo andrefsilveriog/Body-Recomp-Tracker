@@ -8,7 +8,8 @@ function n(v) {
   return Number.isFinite(x) ? x : ''
 }
 
-export default function EntryForm({ tripleEnabled, liftNames, onSubmit, busy }) {
+export default function EntryForm({ sex, tripleEnabled, liftNames, onSubmit, busy }) {
+  const isFemale = String(sex || '').toLowerCase() === 'female'
   const [dateIso, setDateIso] = useState(todayIso())
   const [weight, setWeight] = useState('')
   const [protein, setProtein] = useState('')
@@ -65,7 +66,7 @@ export default function EntryForm({ tripleEnabled, liftNames, onSubmit, busy }) 
     if (!tripleEnabled) {
       payload.neck = neck === '' ? null : Number(neck)
       payload.waist = waist === '' ? null : Number(waist)
-      payload.hip = hip === '' ? null : Number(hip)
+      payload.hip = isFemale ? (hip === '' ? null : Number(hip)) : null
     } else {
       payload.neck1 = neck1 === '' ? null : Number(neck1)
       payload.neck2 = neck2 === '' ? null : Number(neck2)
@@ -73,9 +74,9 @@ export default function EntryForm({ tripleEnabled, liftNames, onSubmit, busy }) 
       payload.waist1 = waist1 === '' ? null : Number(waist1)
       payload.waist2 = waist2 === '' ? null : Number(waist2)
       payload.waist3 = waist3 === '' ? null : Number(waist3)
-      payload.hip1 = hip1 === '' ? null : Number(hip1)
-      payload.hip2 = hip2 === '' ? null : Number(hip2)
-      payload.hip3 = hip3 === '' ? null : Number(hip3)
+      payload.hip1 = isFemale ? (hip1 === '' ? null : Number(hip1)) : null
+      payload.hip2 = isFemale ? (hip2 === '' ? null : Number(hip2)) : null
+      payload.hip3 = isFemale ? (hip3 === '' ? null : Number(hip3)) : null
     }
 
     await onSubmit(payload)
@@ -139,6 +140,7 @@ export default function EntryForm({ tripleEnabled, liftNames, onSubmit, busy }) 
           <b>Navy measurements (weekly)</b>
           <div className="small" style={{ marginTop: 6 }}>
             Optional. Leave blank on non-measurement days.
+            {!isFemale ? ' Male profile: Neck + Waist only.' : ''}
             {tripleEnabled ? ' Triple mode is ON: enter up to 3 readings per site; averages are used.' : ''}
           </div>
         </div>
@@ -155,10 +157,12 @@ export default function EntryForm({ tripleEnabled, liftNames, onSubmit, busy }) 
               <label>Waist (cm)</label>
               <input inputMode="decimal" value={waist} onChange={(e) => setWaist(e.target.value)} placeholder="optional" />
             </div>
-            <div className="field">
-              <label>Hip (cm)</label>
-              <input inputMode="decimal" value={hip} onChange={(e) => setHip(e.target.value)} placeholder="optional" />
-            </div>
+            {isFemale ? (
+              <div className="field">
+                <label>Hip (cm)</label>
+                <input inputMode="decimal" value={hip} onChange={(e) => setHip(e.target.value)} placeholder="optional" />
+              </div>
+            ) : null}
           </div>
         ) : (
           <>
@@ -172,11 +176,13 @@ export default function EntryForm({ tripleEnabled, liftNames, onSubmit, busy }) 
               <div className="field"><label>Waist 2 (cm)</label><input inputMode="decimal" value={waist2} onChange={(e) => setWaist2(e.target.value)} /></div>
               <div className="field"><label>Waist 3 (cm)</label><input inputMode="decimal" value={waist3} onChange={(e) => setWaist3(e.target.value)} /></div>
             </div>
-            <div className="row">
-              <div className="field"><label>Hip 1 (cm)</label><input inputMode="decimal" value={hip1} onChange={(e) => setHip1(e.target.value)} /></div>
-              <div className="field"><label>Hip 2 (cm)</label><input inputMode="decimal" value={hip2} onChange={(e) => setHip2(e.target.value)} /></div>
-              <div className="field"><label>Hip 3 (cm)</label><input inputMode="decimal" value={hip3} onChange={(e) => setHip3(e.target.value)} /></div>
-            </div>
+            {isFemale ? (
+              <div className="row">
+                <div className="field"><label>Hip 1 (cm)</label><input inputMode="decimal" value={hip1} onChange={(e) => setHip1(e.target.value)} /></div>
+                <div className="field"><label>Hip 2 (cm)</label><input inputMode="decimal" value={hip2} onChange={(e) => setHip2(e.target.value)} /></div>
+                <div className="field"><label>Hip 3 (cm)</label><input inputMode="decimal" value={hip3} onChange={(e) => setHip3(e.target.value)} /></div>
+              </div>
+            ) : null}
           </>
         )}
 

@@ -22,6 +22,7 @@ export default function Entry() {
   }, [user])
 
   const tripleEnabled = useMemo(() => !!profile?.triplemeasurements, [profile?.triplemeasurements])
+  const sex = (profile?.sex || 'male').toLowerCase()
 
   async function submitEntry(payload) {
     setMsg(null)
@@ -44,9 +45,9 @@ export default function Entry() {
         </div>
       )}
 
-      <EntryForm tripleEnabled={tripleEnabled} liftNames={liftNames} onSubmit={submitEntry} busy={busy} />
+      <EntryForm sex={sex} tripleEnabled={tripleEnabled} liftNames={liftNames} onSubmit={submitEntry} busy={busy} />
 
-      <EntryTable userId={user.uid} entries={entries} tripleEnabled={tripleEnabled} liftNames={liftNames} />
+      <EntryTable sex={sex} userId={user.uid} entries={entries} tripleEnabled={tripleEnabled} liftNames={liftNames} />
     </>
   )
 }
