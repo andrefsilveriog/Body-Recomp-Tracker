@@ -1,6 +1,38 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { UNSAFE_NavigationContext as NavigationContext } from 'react-router-dom'
 import { batchPatchEntries, removeEntry } from '../services/entries.js'
 import { oneRepMaxKg } from '../utils/calculations.js'
+
+function usePrompt(when, message) {
+  const nav = useContext(NavigationContext)
+  const navigator = nav?.navigator
+
+  // Block in-app navigation (links/routes)
+  useEffect(() => {
+    if (!when) return
+    if (!navigator || typeof navigator.block !== 'function') return
+    const unblock = navigator.block((tx) => {
+      const ok = window.confirm(message)
+      if (ok) {
+        unblock()
+        tx.retry()
+      }
+    })
+    return unblock
+  }, [navigator, when, message])
+
+  // Warn on refresh/close
+  useEffect(() => {
+    if (!when) return
+    const handler = (e) => {
+      e.preventDefault()
+      e.returnValue = message
+      return message
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [when, message])
+}
 
 function toStr(v) {
   if (v === null || v === undefined) return ''
@@ -20,6 +52,8 @@ function cellKey(dateIso, key) {
 export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNames }) {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
+
+  const [editMode, setEditMode] = useState(false)
 
   // Draft values are stored as strings so editing feels natural.
   const [draft, setDraft] = useState({}) // { [cellKey]: string }
@@ -113,6 +147,7 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
   }
 
   function setCellValue(dateIso, key, valueStr) {
+    if (!editMode) return
     const ck = cellKey(dateIso, key)
     const base = baseValue(dateIso, key)
 
@@ -162,6 +197,7 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
   }
 
   function undo() {
+    if (!editMode) return
     setMsg(null)
     setUndoStack((prev) => {
       if (prev.length === 0) return prev
@@ -174,6 +210,7 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
   }
 
   function redo() {
+    if (!editMode) return
     setMsg(null)
     setRedoStack((prev) => {
       if (prev.length === 0) return prev
@@ -240,6 +277,7 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
       setUndoStack([])
       setRedoStack([])
       setMsg({ type: 'success', text: 'Saved changes.' })
+      setEditMode(false)
     } catch (e) {
       setMsg({ type: 'error', text: e?.message || 'Failed to save changes.' })
     } finally {
@@ -278,19 +316,41 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
 
   const hasChanges = Object.keys(dirty || {}).length > 0
 
+  usePrompt(editMode && hasChanges, 'You have unsaved changes. Leave without saving?')
+
   return (
     <div className="panel">
       <div className="panel-header">
         <h2>All Entries</h2>
-        <div className="nav-actions" style={{ justifyContent: 'flex-end' }}>
-          <button className="btn" onClick={undo} disabled={undoStack.length === 0 || saving}>Undo</button>
-          <button className="btn" onClick={redo} disabled={redoStack.length === 0 || saving}>Redo</button>
-          <button className="btn primary" onClick={saveAll} disabled={!hasChanges || saving}>
-            {saving ? 'Saving…' : 'Save'}
+        <div className="table-actions">
+          <button
+            className="btn icon small"
+            onClick={undo}
+            disabled={!editMode || undoStack.length === 0 || saving}
+            title="Undo"
+            aria-label="Undo"
+          >
+            ↶
           </button>
-        </div>
-        <div className="muted">
-          Edit cells, then click Save. {hasChanges ? `${Object.keys(dirty).length} change(s) pending.` : 'No unsaved changes.'}
+          <button
+            className="btn icon small"
+            onClick={redo}
+            disabled={!editMode || redoStack.length === 0 || saving}
+            title="Redo"
+            aria-label="Redo"
+          >
+            ↷
+          </button>
+
+          {!editMode ? (
+            <button className="btn primary small" onClick={() => setEditMode(true)} disabled={saving}>
+              Edit
+            </button>
+          ) : (
+            <button className="btn primary small" onClick={saveAll} disabled={!hasChanges || saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -322,13 +382,18 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
 
                   return (
                     <td key={c.key}>
-                      <input
-                        value={displayValue(e.dateIso, c.key)}
-                        onChange={(ev) => setCellValue(e.dateIso, c.key, ev.target.value)}
-                        onFocus={() => handleFocus(e.dateIso, c.key)}
-                        onBlur={() => handleBlur(e.dateIso, c.key)}
-                        inputMode="decimal"
-                      />
+                      {!editMode ? (
+                        <span>{displayValue(e.dateIso, c.key)}</span>
+                      ) : (
+                        <input
+                          value={displayValue(e.dateIso, c.key)}
+                          onChange={(ev) => setCellValue(e.dateIso, c.key, ev.target.value)}
+                          onFocus={() => handleFocus(e.dateIso, c.key)}
+                          onBlur={() => handleBlur(e.dateIso, c.key)}
+                          inputMode="decimal"
+                          disabled={saving}
+                        />
+                      )}
                     </td>
                   )
                 })}
