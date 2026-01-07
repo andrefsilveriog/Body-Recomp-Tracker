@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { todayIso } from '../utils/date.js'
-import { caloriesFromMacros } from '../utils/calculations.js'
+import { caloriesFromMacros, oneRepMaxKg } from '../utils/calculations.js'
 
 function n(v) {
   if (v === '' || v === null || v === undefined) return ''
@@ -15,9 +15,13 @@ export default function EntryForm({ sex, tripleEnabled, liftNames, onSubmit, bus
   const [protein, setProtein] = useState('')
   const [carbs, setCarbs] = useState('')
   const [fats, setFats] = useState('')
-  const [bench, setBench] = useState('')
-  const [squat, setSquat] = useState('')
-  const [deadlift, setDeadlift] = useState('')
+  // Best last set inputs per lift (optional): load + reps → estimated 1RM stored in DB
+  const [benchLoad, setBenchLoad] = useState('')
+  const [benchReps, setBenchReps] = useState('')
+  const [squatLoad, setSquatLoad] = useState('')
+  const [squatReps, setSquatReps] = useState('')
+  const [deadliftLoad, setDeadliftLoad] = useState('')
+  const [deadliftReps, setDeadliftReps] = useState('')
 
   const [neck, setNeck] = useState('')
   const [waist, setWaist] = useState('')
@@ -39,6 +43,10 @@ export default function EntryForm({ sex, tripleEnabled, liftNames, onSubmit, bus
     return Number.isFinite(c) ? Math.round(c) : 0
   }, [protein, carbs, fats])
 
+  const bench1rm = useMemo(() => oneRepMaxKg(n(benchLoad), n(benchReps)), [benchLoad, benchReps])
+  const squat1rm = useMemo(() => oneRepMaxKg(n(squatLoad), n(squatReps)), [squatLoad, squatReps])
+  const dead1rm = useMemo(() => oneRepMaxKg(n(deadliftLoad), n(deadliftReps)), [deadliftLoad, deadliftReps])
+
     const validDaily = () => (
     dateIso &&
     Number.isFinite(Number(weight)) &&
@@ -52,15 +60,26 @@ export default function EntryForm({ sex, tripleEnabled, liftNames, onSubmit, bus
     e.preventDefault()
     if (!validDaily()) return
 
+    const benchOrm = oneRepMaxKg(n(benchLoad), n(benchReps))
+    const squatOrm = oneRepMaxKg(n(squatLoad), n(squatReps))
+    const deadOrm = oneRepMaxKg(n(deadliftLoad), n(deadliftReps))
+
     const payload = {
       dateIso,
       weight: Number(weight),
       protein: Number(protein),
       carbs: Number(carbs),
       fats: Number(fats),
-      bench: bench === '' ? null : Number(bench),
-      squat: squat === '' ? null : Number(squat),
-      deadlift: deadlift === '' ? null : Number(deadlift),
+      benchLoad: benchLoad === '' ? null : Number(benchLoad),
+      benchReps: benchReps === '' ? null : Number(benchReps),
+      squatLoad: squatLoad === '' ? null : Number(squatLoad),
+      squatReps: squatReps === '' ? null : Number(squatReps),
+      deadliftLoad: deadliftLoad === '' ? null : Number(deadliftLoad),
+      deadliftReps: deadliftReps === '' ? null : Number(deadliftReps),
+      // Keep existing lift fields for charts/analysis — now represent estimated 1RM.
+      bench: Number.isFinite(benchOrm) ? Math.round(benchOrm * 10) / 10 : null,
+      squat: Number.isFinite(squatOrm) ? Math.round(squatOrm * 10) / 10 : null,
+      deadlift: Number.isFinite(deadOrm) ? Math.round(deadOrm * 10) / 10 : null,
     }
 
     if (!tripleEnabled) {
@@ -121,17 +140,33 @@ export default function EntryForm({ sex, tripleEnabled, liftNames, onSubmit, bus
 
         <div className="row">
           <div className="field">
-            <label>{ln[0]} (kg) <span className="muted">(optional)</span></label>
-            <input inputMode="decimal" value={bench} onChange={(e) => setBench(e.target.value)} placeholder="e.g. 100" />
+            <label>{ln[0]} <span className="muted">(optional)</span></label>
+            <div className="inline2">
+              <input inputMode="decimal" value={benchLoad} onChange={(e) => setBenchLoad(e.target.value)} placeholder="Load (kg)" />
+              <input inputMode="numeric" value={benchReps} onChange={(e) => setBenchReps(e.target.value)} placeholder="Reps" />
+            </div>
+            <div className="muted small">Est. 1RM: <b>{Number.isFinite(bench1rm) ? (Math.round(bench1rm * 10) / 10) : '—'}</b> kg</div>
           </div>
           <div className="field">
-            <label>{ln[1]} (kg) <span className="muted">(optional)</span></label>
-            <input inputMode="decimal" value={squat} onChange={(e) => setSquat(e.target.value)} placeholder="e.g. 140" />
+            <label>{ln[1]} <span className="muted">(optional)</span></label>
+            <div className="inline2">
+              <input inputMode="decimal" value={squatLoad} onChange={(e) => setSquatLoad(e.target.value)} placeholder="Load (kg)" />
+              <input inputMode="numeric" value={squatReps} onChange={(e) => setSquatReps(e.target.value)} placeholder="Reps" />
+            </div>
+            <div className="muted small">Est. 1RM: <b>{Number.isFinite(squat1rm) ? (Math.round(squat1rm * 10) / 10) : '—'}</b> kg</div>
           </div>
           <div className="field">
-            <label>{ln[2]} (kg) <span className="muted">(optional)</span></label>
-            <input inputMode="decimal" value={deadlift} onChange={(e) => setDeadlift(e.target.value)} placeholder="e.g. 180" />
+            <label>{ln[2]} <span className="muted">(optional)</span></label>
+            <div className="inline2">
+              <input inputMode="decimal" value={deadliftLoad} onChange={(e) => setDeadliftLoad(e.target.value)} placeholder="Load (kg)" />
+              <input inputMode="numeric" value={deadliftReps} onChange={(e) => setDeadliftReps(e.target.value)} placeholder="Reps" />
+            </div>
+            <div className="muted small">Est. 1RM: <b>{Number.isFinite(dead1rm) ? (Math.round(dead1rm * 10) / 10) : '—'}</b> kg</div>
           </div>
+        </div>
+
+        <div className="muted small" style={{ marginTop: 6 }}>
+          Enter both load + reps to calculate 1RM. If left blank, strength trends will carry forward the last known value.
         </div>
 
         <hr className="sep" />

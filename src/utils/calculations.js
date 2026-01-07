@@ -9,8 +9,30 @@ export function caloriesFromMacros({ protein, carbs, fats }) {
   return (p * 4) + (c * 4) + (f * 9)
 }
 
+/**
+ * One-rep max estimate from a best set (load + reps).
+ *
+ * Uses the Brzycki formula:
+ *   1RM = load * 36 / (37 - reps)
+ *
+ * Notes:
+ * - If load or reps is missing/invalid, returns null.
+ * - If reps >= 37, the formula becomes invalid (division by 0 or negative).
+ */
+export function oneRepMaxKg(loadKg, reps) {
+  const w = Number(loadKg)
+  const r = Number(reps)
+  if (!Number.isFinite(w) || w <= 0) return null
+  if (!Number.isFinite(r) || r <= 0) return null
+  if (r >= 37) return null
+  const orm = w * (36 / (37 - r))
+  return Number.isFinite(orm) ? orm : null
+}
+
 export function avgStrength({ bench, squat, deadlift }) {
-  const nums = [bench, squat, deadlift].map((x) => Number(x)).filter((x) => Number.isFinite(x))
+  const nums = [bench, squat, deadlift]
+    .map((x) => (x === null || x === undefined || x === '' ? NaN : Number(x)))
+    .filter((x) => Number.isFinite(x))
   if (!nums.length) return null
   return nums.reduce((a, b) => a + b, 0) / nums.length
 }
@@ -232,12 +254,13 @@ export function computeWeeklyAnalysis(derived) {
 }
 
 function num(v) {
+  if (v === null || v === undefined || v === '') return null
   const n = Number(v)
   return Number.isFinite(n) ? n : null
 }
 
 function avg(arr) {
-  const nums = arr.map(Number).filter(Number.isFinite)
+  const nums = (arr || []).map((x) => (x === null || x === undefined || x === '' ? NaN : Number(x))).filter(Number.isFinite)
   if (!nums.length) return null
   return nums.reduce((s, x) => s + x, 0) / nums.length
 }

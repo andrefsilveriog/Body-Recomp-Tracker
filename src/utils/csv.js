@@ -23,7 +23,9 @@ export function buildCsvRows({ entries, derived }) {
   const header = [
     'dateIso',
     'weightKg','proteinG','carbsG','fatsG',
-    'benchKg','squatKg','deadliftKg',
+    'benchLoadKg','benchReps','bench1rmKg',
+    'squatLoadKg','squatReps','squat1rmKg',
+    'deadliftLoadKg','deadliftReps','deadlift1rmKg',
     'calories','avgStrength',
     'wmaWeight','wmaCalories','wmaAvgStrength','wmaBench','wmaSquat','wmaDeadlift',
     'neck','waist','hip',
@@ -39,7 +41,9 @@ export function buildCsvRows({ entries, derived }) {
     rows.push([
       e.dateIso,
       e.weight, e.protein, e.carbs, e.fats,
-      e.bench, e.squat, e.deadlift,
+      e.benchLoad, e.benchReps, e.bench,
+      e.squatLoad, e.squatReps, e.squat,
+      e.deadliftLoad, e.deadliftReps, e.deadlift,
       d?.calories, d?.avgStrength,
       d?.wma?.weight, d?.wma?.calories, d?.wma?.avgStrength, d?.wma?.bench, d?.wma?.squat, d?.wma?.deadlift,
       e.neck, e.waist, e.hip,

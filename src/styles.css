@@ -196,6 +196,15 @@ button, input, select{
   gap:10px;
   flex-wrap:wrap;
 }
+
+.inline2{
+  display:flex;
+  gap: 8px;
+}
+.inline2 input{
+  flex: 1 1 0;
+  min-width: 90px;
+}
 .field{
   display:flex;
   flex-direction:column;

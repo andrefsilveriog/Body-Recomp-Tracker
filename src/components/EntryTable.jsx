@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { patchEntry, removeEntry } from '../services/entries.js'
+import { oneRepMaxKg } from '../utils/calculations.js'
 
 function toStr(v) {
   if (v === null || v === undefined) return ''
@@ -25,9 +26,12 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
       { key: 'protein', label: 'Protein' },
       { key: 'carbs', label: 'Carbs' },
       { key: 'fats', label: 'Fats' },
-      { key: 'bench', label: ln[0] },
-      { key: 'squat', label: ln[1] },
-      { key: 'deadlift', label: ln[2] },
+      { key: 'benchLoad', label: `${ln[0]} Load` },
+      { key: 'benchReps', label: `${ln[0]} Reps` },
+      { key: 'squatLoad', label: `${ln[1]} Load` },
+      { key: 'squatReps', label: `${ln[1]} Reps` },
+      { key: 'deadliftLoad', label: `${ln[2]} Load` },
+      { key: 'deadliftReps', label: `${ln[2]} Reps` },
     ]
 
     if (!tripleEnabled) {
@@ -49,12 +53,40 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
     return base
   }, [tripleEnabled, liftNames, sex])
 
+  function getRow(dateIso) {
+    return (entries || []).find((x) => x.dateIso === dateIso) || null
+  }
+
+  function maybeOrm(load, reps) {
+    const orm = oneRepMaxKg(load, reps)
+    return Number.isFinite(orm) ? Math.round(orm * 10) / 10 : null
+  }
+
   async function saveCell(dateIso, key, value) {
     if (key === 'dateIso' || key === '_actions') return
     setMsg(null)
     setSaving(true)
     try {
-      await patchEntry(userId, dateIso, { [key]: parseMaybeNumber(value) })
+      const v = parseMaybeNumber(value)
+      const row = getRow(dateIso)
+
+      // If a lift load/reps changes, also recompute and store its 1RM into the existing lift field
+      // (bench/squat/deadlift) so charts/analysis remain unchanged.
+      if (key === 'benchLoad' || key === 'benchReps') {
+        const load = key === 'benchLoad' ? v : parseMaybeNumber(row?.benchLoad ?? '')
+        const reps = key === 'benchReps' ? v : parseMaybeNumber(row?.benchReps ?? '')
+        await patchEntry(userId, dateIso, { [key]: v, bench: maybeOrm(load, reps) })
+      } else if (key === 'squatLoad' || key === 'squatReps') {
+        const load = key === 'squatLoad' ? v : parseMaybeNumber(row?.squatLoad ?? '')
+        const reps = key === 'squatReps' ? v : parseMaybeNumber(row?.squatReps ?? '')
+        await patchEntry(userId, dateIso, { [key]: v, squat: maybeOrm(load, reps) })
+      } else if (key === 'deadliftLoad' || key === 'deadliftReps') {
+        const load = key === 'deadliftLoad' ? v : parseMaybeNumber(row?.deadliftLoad ?? '')
+        const reps = key === 'deadliftReps' ? v : parseMaybeNumber(row?.deadliftReps ?? '')
+        await patchEntry(userId, dateIso, { [key]: v, deadlift: maybeOrm(load, reps) })
+      } else {
+        await patchEntry(userId, dateIso, { [key]: v })
+      }
       setMsg({ type: 'success', text: 'Saved.' })
     } catch (e) {
       setMsg({ type: 'error', text: e?.message || 'Failed to save.' })

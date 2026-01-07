@@ -1,12 +1,18 @@
 # Body Recomposition Tracker (React + Firebase + GitHub Pages)
 
 This is a single-page app for body recomposition tracking:
-- Daily logging (weight, macros, bench/squat/deadlift)
+- Daily logging (weight, macros)
+- Strength logging (3 lifts) as **best last set**: Load (kg) + Reps → stores estimated **1RM**
 - Optional weekly Navy Method measurements (+ optional triple-measure mode)
 - Client-side 7-day exponential weighted moving average (alpha = 2/(7+1))
 - Weekly analysis: computed TDEE, metabolic adaptation vs baseline, loss rate vs LBM
 - Email/password auth only
 - Firestore per-user security rules
+
+### Strength 1RM details
+- You enter **Load (kg)** + **Reps** for your best last set per lift (optional each day).
+- The app computes estimated 1RM using the **Brzycki** formula: `1RM = load * 36 / (37 - reps)`.
+- The computed 1RM is stored in the existing `bench` / `squat` / `deadlift` fields so all charts/weekly logic keeps working.
 
 ## 1) Firebase Setup
 ### Auth
