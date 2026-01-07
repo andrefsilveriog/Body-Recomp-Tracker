@@ -7,7 +7,8 @@ export default function OverlayChart({ derived }) {
 
   const weight = derived.map((d) => d.wma?.weight)
   const avgStrength = derived.map((d) => d.wma?.avgStrength)
-  const calories = derived.map((d) => d.wma?.calories)
+  // Calories should be raw (not smoothed) so refeed / low-calorie days aren't "averaged away".
+  const calories = derived.map((d) => d.calories)
 
   const data = {
     labels,
@@ -31,13 +32,13 @@ export default function OverlayChart({ derived }) {
         tension: 0.25,
       },
       {
-        label: 'Calories (WMA)',
+        label: 'Calories (raw)',
         data: calories,
         yAxisID: 'yRight',
         borderColor: 'rgba(251,191,36,0.95)',
         borderWidth: 2,
         pointRadius: 0,
-        tension: 0.25,
+        tension: 0.15,
       },
     ],
   }
@@ -68,7 +69,7 @@ export default function OverlayChart({ derived }) {
 
   return (
     <div className="chart card">
-      <div className="card-title">Weight + Strength vs Calories (Smoothed)</div>
+      <div className="card-title">Smoothed Weight/Strength vs Raw Calories</div>
       <div className="chart-inner">
         <Line data={data} options={options} />
       </div>
