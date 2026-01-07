@@ -139,7 +139,14 @@ export function buildDerivedSeries(entries, profile) {
 
 export function computeWeeklyAnalysis(derived) {
   // needs >= 14 days to show (2 full weeks)
-  if (!derived || derived.length < 14) return { weeks: [], baselineTdee: null }
+  if (!derived || derived.length < 14) {
+    return {
+      weeks: [],
+      baselineTdee: null,
+      baselineStrength: null,
+      baselineWeeklyLoss: null,
+    }
+  }
 
   const weeks = []
   const total = derived.length
@@ -161,6 +168,7 @@ export function computeWeeklyAnalysis(derived) {
     const slice = derived.slice(start, end + 1)
 
     const avgCalories = avg(slice.map((d) => d.calories))
+    const avgStrengthWma = avg(slice.map((d) => d?.wma?.avgStrength))
     // Use smoothed weight to reduce noise in weekly deficit estimate
     const startW = slice[0]?.wma?.weight
     const endW = slice[slice.length - 1]?.wma?.weight
@@ -189,6 +197,7 @@ export function computeWeeklyAnalysis(derived) {
       avgCalories,
       weightChange,
       tdee,
+      avgStrengthWma,
       lbm,
       lossRatePct,
       lossRateStatus,
@@ -201,6 +210,17 @@ export function computeWeeklyAnalysis(derived) {
   const firstTwo = weeks.slice(0, 2).map((w) => w.tdee).filter(Number.isFinite)
   const baselineTdee = firstTwo.length ? avg(firstTwo) : null
 
+  // strength baseline = average of first 2 weeks' avgStrengthWma
+  const firstTwoStrength = weeks.slice(0, 2).map((w) => w.avgStrengthWma).filter(Number.isFinite)
+  const baselineStrength = firstTwoStrength.length ? avg(firstTwoStrength) : null
+
+  // weekly loss baseline (kg/week) based on first 2 weeks, using smoothed weight change
+  const firstTwoLoss = weeks
+    .slice(0, 2)
+    .map((w) => (Number.isFinite(w.weightChange) ? Math.max(0, -w.weightChange) : null))
+    .filter(Number.isFinite)
+  const baselineWeeklyLoss = firstTwoLoss.length ? avg(firstTwoLoss) : null
+
   if (Number.isFinite(baselineTdee)) {
     for (const w of weeks) {
       if (!Number.isFinite(w.tdee)) continue
@@ -209,7 +229,7 @@ export function computeWeeklyAnalysis(derived) {
     }
   }
 
-  return { weeks, baselineTdee }
+  return { weeks, baselineTdee, baselineStrength, baselineWeeklyLoss }
 }
 
 function num(v) {

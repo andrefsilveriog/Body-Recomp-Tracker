@@ -23,7 +23,10 @@ export default function Navbar() {
         </div>
 
         <div className="nav-links">
-          <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'active' : ''}>Dashboard</NavLink>
+          <div className="nav-tabs">
+            <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'active' : ''}>Dashboard</NavLink>
+            <NavLink to="/insights" className={({ isActive }) => isActive ? 'active' : ''}>Insights</NavLink>
+          </div>
           {user && <NavLink to="/entry" className={({ isActive }) => isActive ? 'active' : ''}>Entry</NavLink>}
           {user && <NavLink to="/profile" className={({ isActive }) => isActive ? 'active' : ''}>Profile</NavLink>}
         </div>

@@ -12,6 +12,7 @@ export default function Profile() {
 
   const [sex, setSex] = useState(profile.sex || '')
   const [height, setHeight] = useState(profile.height || '')
+  const [targetWeight, setTargetWeight] = useState(profile.targetWeight ?? '')
   const [triple, setTriple] = useState(!!profile.triplemeasurements)
 
   const [busy, setBusy] = useState(false)
@@ -29,8 +30,9 @@ export default function Profile() {
   React.useEffect(() => {
     setSex(profile.sex || '')
     setHeight(profile.height || '')
+    setTargetWeight(profile.targetWeight ?? '')
     setTriple(!!profile.triplemeasurements)
-  }, [profile.sex, profile.height, profile.triplemeasurements])
+  }, [profile.sex, profile.height, profile.targetWeight, profile.triplemeasurements])
 
   async function saveProfile(e) {
     e.preventDefault()
@@ -41,9 +43,16 @@ export default function Profile() {
       if (!sex) throw new Error('Sex is required.')
       if (!Number.isFinite(h) || h <= 0) throw new Error('Height must be a positive number (cm).')
 
+      let tw = null
+      if (String(targetWeight).trim() !== '') {
+        tw = Number(targetWeight)
+        if (!Number.isFinite(tw) || tw <= 0) throw new Error('Target weight must be a positive number (kg).')
+      }
+
       await updateProfile({
         sex,
         height: h,
+        targetWeight: tw,
         triplemeasurements: !!triple,
       })
       setMsg({ type: 'success', text: 'Profile saved.' })
@@ -132,6 +141,11 @@ export default function Profile() {
             <div className="field">
               <label>Height (cm)</label>
               <input inputMode="numeric" value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 175" required />
+            </div>
+
+            <div className="field">
+              <label>Target weight (kg) (optional)</label>
+              <input inputMode="numeric" value={targetWeight} onChange={(e) => setTargetWeight(e.target.value)} placeholder="e.g. 82" />
             </div>
 
             <div className="field">

@@ -9,6 +9,7 @@ const DEFAULT_PROFILE = {
   email: '',
   sex: '',
   height: '',
+  targetWeight: '',
   triplemeasurements: false,
   createdAt: null,
 }
@@ -34,6 +35,7 @@ export function ProfileProvider({ children }) {
           email: user.email || '',
           sex: '',
           height: '',
+          targetWeight: null,
           triplemeasurements: false,
           createdAt: serverTimestamp(),
         })
@@ -44,6 +46,7 @@ export function ProfileProvider({ children }) {
         email: data.email || user.email || '',
         sex: data.sex || '',
         height: data.height || '',
+        targetWeight: (data.targetWeight ?? ''),
         triplemeasurements: !!data.triplemeasurements,
         createdAt: data.createdAt || null,
       })

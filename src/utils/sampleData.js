@@ -15,6 +15,7 @@ export function buildSampleProfile() {
     email: 'sample@demo.local',
     sex: 'male',
     height: 175,
+    targetWeight: 82,
     triplemeasurements: false,
     createdAt: null
   }

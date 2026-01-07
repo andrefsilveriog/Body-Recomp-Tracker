@@ -4,6 +4,7 @@ import Navbar from './ui/Navbar.jsx'
 import ProtectedRoute from './ui/ProtectedRoute.jsx'
 
 import Dashboard from './pages/Dashboard.jsx'
+import Insights from './pages/Insights.jsx'
 import Login from './pages/Login.jsx'
 import Signup from './pages/Signup.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/insights" element={<Insights />} />
 
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />

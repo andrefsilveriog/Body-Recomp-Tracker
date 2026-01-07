@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Redirecting…</title>
+    <script>
+      // Store the full URL then redirect to the app root.
+      // index.html will read and restore it.
+      sessionStorage.setItem('gh_redirect', window.location.href);
+      var base = '/Body-Recomp-Tracker/';
+      window.location.replace(base);
+    </script>
+  </head>
+  <body>Redirecting…</body>
+</html>

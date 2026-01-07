@@ -9,13 +9,14 @@ import WeightTrendChart from '../components/Charts/WeightTrendChart.jsx'
 import StrengthChart from '../components/Charts/StrengthChart.jsx'
 import OverlayChart from '../components/Charts/OverlayChart.jsx'
 import WeeklyAnalysisTable from '../components/WeeklyAnalysisTable.jsx'
+import InsightsBanner from '../components/InsightsBanner.jsx'
 
 function fmt(n, d=1) {
   if (!Number.isFinite(n)) return '—'
   return n.toFixed(d)
 }
 
-export default function Dashboard() {
+export default function Dashboard({ view = 'dashboard' }) {
   const { user } = useAuth()
   const { profile } = useProfile()
   const [entries, setEntries] = useState([])
@@ -87,6 +88,10 @@ export default function Dashboard() {
       )}
 
       {error && <div className="notice error" style={{ marginTop: 14 }}>{error}</div>}
+
+      {view === 'insights' && (
+        <InsightsBanner derived={derived} weekly={weekly} profile={activeProfile || {}} />
+      )}
 
       <div className="panel">
         <div className="panel-header">

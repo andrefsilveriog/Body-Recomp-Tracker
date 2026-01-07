@@ -73,6 +73,26 @@ button, input, select{
   gap:10px;
   flex-wrap:wrap;
 }
+
+/* Dashboard / Insights tab group */
+.nav-tabs{
+  display:flex;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow:hidden;
+  background: rgba(255,255,255,0.04);
+}
+.nav-tabs a{
+  padding: 8px 12px;
+  border-radius: 0;
+  border: none;
+  color: var(--muted);
+}
+.nav-tabs a + a{ border-left: 1px solid var(--line); }
+.nav-tabs a.active{
+  color: var(--text);
+  background: rgba(96,165,250,0.15);
+}
 .nav-links a{
   padding: 8px 10px;
   border-radius: 10px;
@@ -83,6 +103,12 @@ button, input, select{
   color: var(--text);
   border-color: var(--line);
   background: rgba(255,255,255,0.04);
+}
+
+/* Ensure active tab styling wins inside the tab group */
+.nav-tabs a.active{
+  border-color: transparent;
+  background: rgba(96,165,250,0.15);
 }
 .nav-actions{
   display:flex;
@@ -144,6 +170,14 @@ button, input, select{
   border-radius: 16px;
   padding: 14px;
 }
+
+/* Insight cards */
+.insight-card{ border-left: 4px solid rgba(255,255,255,0.12); }
+.insight-card.good{ border-left-color: rgba(52,211,153,0.8); }
+.insight-card.warn{ border-left-color: rgba(245,158,11,0.85); }
+.insight-card.bad{ border-left-color: rgba(239,68,68,0.85); }
+.insight-card.info{ border-left-color: rgba(96,165,250,0.85); }
+.insight-title{ font-weight: 800; letter-spacing: 0.2px; }
 .card-title{
   font-size: 13px;
   color: var(--muted);
@@ -221,6 +255,20 @@ hr.sep{ border: none; border-top: 1px solid var(--line); margin: 14px 0; }
 .text-green{ color: var(--good); }
 .text-blue{ color: var(--info); }
 .strong{ font-weight: 800; }
+
+/* Insights */
+.insight-card{
+  position: relative;
+  border-left: 4px solid rgba(255,255,255,0.10);
+}
+.insight-title{
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+.insight-card.good{ border-left-color: rgba(52,211,153,0.85); }
+.insight-card.warn{ border-left-color: rgba(245,158,11,0.9); }
+.insight-card.bad{ border-left-color: rgba(239,68,68,0.9); }
+.insight-card.info{ border-left-color: rgba(96,165,250,0.9); }
 
 .footer-actions{
   display:flex;
