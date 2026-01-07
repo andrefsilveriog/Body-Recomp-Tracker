@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { todayIso } from '../utils/date.js'
-import { caloriesFromMacros } from '../utils/calculations.js'
+import { caloriesFromMacros, epley1rm } from '../utils/calculations.js'
 
 function n(v) {
   if (v === '' || v === null || v === undefined) return ''
@@ -14,9 +14,12 @@ export default function EntryForm({ tripleEnabled, onSubmit, busy }) {
   const [protein, setProtein] = useState('')
   const [carbs, setCarbs] = useState('')
   const [fats, setFats] = useState('')
-  const [bench, setBench] = useState('')
-  const [squat, setSquat] = useState('')
-  const [deadlift, setDeadlift] = useState('')
+  const [benchLoad, setBenchLoad] = useState('')
+  const [benchReps, setBenchReps] = useState('')
+  const [squatLoad, setSquatLoad] = useState('')
+  const [squatReps, setSquatReps] = useState('')
+  const [deadliftLoad, setDeadliftLoad] = useState('')
+  const [deadliftReps, setDeadliftReps] = useState('')
 
   const [neck, setNeck] = useState('')
   const [waist, setWaist] = useState('')
@@ -43,10 +46,9 @@ export default function EntryForm({ tripleEnabled, onSubmit, busy }) {
     Number.isFinite(Number(protein)) &&
     Number.isFinite(Number(carbs)) &&
     Number.isFinite(Number(fats)) &&
-    Number.isFinite(Number(bench)) &&
-    Number.isFinite(Number(squat)) &&
-    Number.isFinite(Number(deadlift))
-  )
+    Number.isFinite(Number(benchLoad)) && Number.isFinite(Number(benchReps)) &&
+    Number.isFinite(Number(squatLoad)) && Number.isFinite(Number(squatReps)) &&
+    Number.isFinite(Number(deadliftLoad)) && Number.isFinite(Number(deadliftReps))
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -58,9 +60,12 @@ export default function EntryForm({ tripleEnabled, onSubmit, busy }) {
       protein: Number(protein),
       carbs: Number(carbs),
       fats: Number(fats),
-      bench: Number(bench),
-      squat: Number(squat),
-      deadlift: Number(deadlift),
+      benchLoad: Number(benchLoad),
+      benchReps: Number(benchReps),
+      squatLoad: Number(squatLoad),
+      squatReps: Number(squatReps),
+      deadliftLoad: Number(deadliftLoad),
+      deadliftReps: Number(deadliftReps),
     }
 
     if (!tripleEnabled) {
@@ -120,23 +125,49 @@ export default function EntryForm({ tripleEnabled, onSubmit, busy }) {
         <hr className="sep" />
 
         <div className="row">
-          <div className="field">
-            <label>Bench (kg)</label>
-            <input inputMode="decimal" value={bench} onChange={(e) => setBench(e.target.value)} placeholder="e.g. 100" required />
+
+          <div className="section-title">Strength (best set → Epley 1RM)</div>
+
+          <div className="grid-2">
+            <div className="field">
+              <label>Bench load (kg)</label>
+              <input inputMode="decimal" value={benchLoad} onChange={(e) => setBenchLoad(e.target.value)} placeholder="e.g. 85" required />
+            </div>
+            <div className="field">
+              <label>Bench reps</label>
+              <input inputMode="numeric" value={benchReps} onChange={(e) => setBenchReps(e.target.value)} placeholder="e.g. 5" required />
+            </div>
+
+            <div className="field">
+              <label>Squat load (kg)</label>
+              <input inputMode="decimal" value={squatLoad} onChange={(e) => setSquatLoad(e.target.value)} placeholder="e.g. 120" required />
+            </div>
+            <div className="field">
+              <label>Squat reps</label>
+              <input inputMode="numeric" value={squatReps} onChange={(e) => setSquatReps(e.target.value)} placeholder="e.g. 5" required />
+            </div>
+
+            <div className="field">
+              <label>Deadlift load (kg)</label>
+              <input inputMode="decimal" value={deadliftLoad} onChange={(e) => setDeadliftLoad(e.target.value)} placeholder="e.g. 150" required />
+            </div>
+            <div className="field">
+              <label>Deadlift reps</label>
+              <input inputMode="numeric" value={deadliftReps} onChange={(e) => setDeadliftReps(e.target.value)} placeholder="e.g. 5" required />
+            </div>
           </div>
-          <div className="field">
-            <label>Squat (kg)</label>
-            <input inputMode="decimal" value={squat} onChange={(e) => setSquat(e.target.value)} placeholder="e.g. 140" required />
+
+          <div className="muted" style={{ marginTop: 8 }}>
+            1RM estimates: Bench <b>{Math.round((epley1rm(benchLoad, benchReps) || 0))}kg</b> ·
+            Squat <b>{Math.round((epley1rm(squatLoad, squatReps) || 0))}kg</b> ·
+            Deadlift <b>{Math.round((epley1rm(deadliftLoad, deadliftReps) || 0))}kg</b>
           </div>
-          <div className="field">
-            <label>Deadlift (kg)</label>
-            <input inputMode="decimal" value={deadlift} onChange={(e) => setDeadlift(e.target.value)} placeholder="e.g. 180" required />
-          </div>
+
         </div>
 
         <hr className="sep" />
 
-        <div className="notice info">
+<div className="notice info">
           <b>Navy measurements (weekly)</b>
           <div className="small" style={{ marginTop: 6 }}>
             Optional. Leave blank on non-measurement days.
@@ -186,7 +217,8 @@ export default function EntryForm({ tripleEnabled, onSubmit, busy }) {
             {busy ? 'Saving…' : 'Add / Update Entry'}
           </button>
         </div>
-      </form>
+
+</form>
     </div>
   )
 }

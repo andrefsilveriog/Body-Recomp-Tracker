@@ -9,6 +9,29 @@ export function caloriesFromMacros({ protein, carbs, fats }) {
   return (p * 4) + (c * 4) + (f * 9)
 }
 
+
+export function epley1rm(loadKg, reps) {
+  const w = Number(loadKg)
+  const r = Number(reps)
+  if (!Number.isFinite(w) || w <= 0) return null
+  if (!Number.isFinite(r) || r <= 0) return null
+  // Epley formula: 1RM = weight * (1 + reps/30)
+  const oneRm = w * (1 + (r / 30))
+  return Number.isFinite(oneRm) ? oneRm : null
+}
+
+
+function liftOneRmFromEntry(entry, lift) {
+  // New schema: liftLoad + liftReps
+  const load = entry?.[`${lift}Load`]
+  const reps = entry?.[`${lift}Reps`]
+  const oneRm = epley1rm(load, reps)
+  if (Number.isFinite(oneRm)) return oneRm
+  // Back-compat: old schema stored bench/squat/deadlift directly
+  const legacy = Number(entry?.[lift])
+  return Number.isFinite(legacy) ? legacy : null
+}
+
 export function avgStrength({ bench, squat, deadlift }) {
   const b = Number(bench ?? 0)
   const s = Number(squat ?? 0)
@@ -102,11 +125,14 @@ export function buildDerivedSeries(entries, profile) {
     protein: num(e.protein),
     carbs: num(e.carbs),
     fats: num(e.fats),
-    bench: num(e.bench),
-    squat: num(e.squat),
-    deadlift: num(e.deadlift),
+    bench: liftOneRmFromEntry(e, 'bench'),
+    squat: liftOneRmFromEntry(e, 'squat'),
+    deadlift: liftOneRmFromEntry(e, 'deadlift'),
+    bench1rm: liftOneRmFromEntry(e, 'bench'),
+    squat1rm: liftOneRmFromEntry(e, 'squat'),
+    deadlift1rm: liftOneRmFromEntry(e, 'deadlift'),
     calories: caloriesFromMacros(e),
-    avgStrength: avgStrength(e),
+    avgStrength: avgStrength({ bench: liftOneRmFromEntry(e, 'bench'), squat: liftOneRmFromEntry(e, 'squat'), deadlift: liftOneRmFromEntry(e, 'deadlift') }),
     bfPct: bodyFatNavyPct({ sex, heightCm: height, entry: e, tripleEnabled: triple }),
   }))
 

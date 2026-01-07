@@ -23,9 +23,12 @@ export default function EntryTable({ userId, entries, tripleEnabled }) {
       { key: 'protein', label: 'Protein' },
       { key: 'carbs', label: 'Carbs' },
       { key: 'fats', label: 'Fats' },
-      { key: 'bench', label: 'Bench' },
-      { key: 'squat', label: 'Squat' },
-      { key: 'deadlift', label: 'Deadlift' },
+      { key: 'benchLoad', label: 'Bench kg' },
+      { key: 'benchReps', label: 'Bench reps' },
+      { key: 'squatLoad', label: 'Squat kg' },
+      { key: 'squatReps', label: 'Squat reps' },
+      { key: 'deadliftLoad', label: 'Deadlift kg' },
+      { key: 'deadliftReps', label: 'Deadlift reps' },
     ]
 
     if (!tripleEnabled) {

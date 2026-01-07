@@ -10,6 +10,10 @@ function randn() {
 
 function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)) }
 
+function loadFromEpley(oneRm, reps) {
+  return oneRm / (1 + (reps / 30))
+}
+
 export function buildSampleProfile() {
   return {
     email: 'sample@demo.local',
@@ -55,6 +59,10 @@ export function buildSampleEntries(days = 60) {
     const squat = squatTrend + randn() * 2.5
     const deadlift = deadTrend + randn() * 2.8
 
+    const benchReps = Math.round(clamp(5 + randn() * 0.8, 3, 8))
+    const squatReps = Math.round(clamp(5 + randn() * 0.8, 3, 8))
+    const deadliftReps = Math.round(clamp(5 + randn() * 0.8, 3, 8))
+
     // macros roughly consistent
     const protein = 180 + randn() * 10
     const fats = 70 + randn() * 6
@@ -69,9 +77,12 @@ export function buildSampleEntries(days = 60) {
       protein: round0(protein),
       carbs: round0(clamp(carbs, 100, 320)),
       fats: round0(clamp(fats, 45, 95)),
-      bench: round1(bench),
-      squat: round1(squat),
-      deadlift: round1(deadlift),
+      benchLoad: round1(loadFromEpley(bench, benchReps) + randn() * 1.0),
+      benchReps: benchReps,
+      squatLoad: round1(loadFromEpley(squat, squatReps) + randn() * 1.5),
+      squatReps: squatReps,
+      deadliftLoad: round1(loadFromEpley(deadlift, deadliftReps) + randn() * 2.0),
+      deadliftReps: deadliftReps,
       neck: null,
       waist: null,
       hip: null,
