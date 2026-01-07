@@ -14,6 +14,12 @@ export function todayIso() {
   return toDateIso(new Date())
 }
 
+export function addDaysIso(dateIso, deltaDays) {
+  const d = parseDateIso(dateIso)
+  d.setDate(d.getDate() + Number(deltaDays || 0))
+  return toDateIso(d)
+}
+
 export function sortByDateIsoAsc(a, b) {
   return a.dateIso.localeCompare(b.dateIso)
 }

@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../state/AuthContext.jsx'
 import { useProfile } from '../state/ProfileContext.jsx'
 import { listenEntries } from '../services/entries.js'
 import { buildDerivedSeries, computeWeeklyAnalysis } from '../utils/calculations.js'
 import { buildSampleEntries, buildSampleProfile } from '../utils/sampleData.js'
+import { listenCycles } from '../services/cycles.js'
+import { todayIso } from '../utils/date.js'
 
 import WeightTrendChart from '../components/Charts/WeightTrendChart.jsx'
 import StrengthChart from '../components/Charts/StrengthChart.jsx'
@@ -11,16 +14,25 @@ import OverlayChart from '../components/Charts/OverlayChart.jsx'
 import WeeklyAnalysisTable from '../components/WeeklyAnalysisTable.jsx'
 import InsightsBanner from '../components/InsightsBanner.jsx'
 
+function titleCycle(type) {
+  if (type === 'cut') return 'Cut'
+  if (type === 'bulk') return 'Bulk'
+  if (type === 'maintain') return 'Maintain'
+  return String(type || '')
+}
+
 function fmt(n, d=1) {
   if (!Number.isFinite(n)) return '—'
   return n.toFixed(d)
 }
 
 export default function Dashboard({ view = 'dashboard' }) {
+  const nav = useNavigate()
   const { user } = useAuth()
   const { profile } = useProfile()
   const liftNames = (Array.isArray(profile?.liftNames) && profile.liftNames.length===3) ? profile.liftNames : ['Bench Press','Squat','Deadlift']
   const [entries, setEntries] = useState([])
+  const [cycles, setCycles] = useState([])
   const [error, setError] = useState(null)
 
   useEffect(() => {
@@ -30,11 +42,49 @@ export default function Dashboard({ view = 'dashboard' }) {
     return () => unsub()
   }, [user])
 
+  // cycles
+  useEffect(() => {
+    if (!user) {
+      setCycles([])
+      return
+    }
+    const unsub = listenCycles(
+      user.uid,
+      (data) => setCycles(data),
+      () => {}
+    )
+    return () => unsub()
+  }, [user])
+
   const demoProfile = useMemo(() => buildSampleProfile(), [])
   const demoEntries = useMemo(() => buildSampleEntries(60), [])
 
+  const demoCycles = useMemo(() => {
+    if (!demoEntries?.length) return []
+    return [{ id: 'demo', type: 'cut', startDateIso: demoEntries[0].dateIso, endDateIso: null }]
+  }, [demoEntries])
+
   const activeProfile = user ? profile : demoProfile
   const activeEntries = user ? entries : demoEntries
+
+  const activeCycles = user ? cycles : demoCycles
+
+  const currentCycle = useMemo(() => {
+    if (!activeCycles?.length) return null
+    const t = todayIso()
+    const explicitActive = activeCycles.find((c) => !c.endDateIso)
+    if (explicitActive) return explicitActive
+    const ranged = activeCycles.find((c) => (c.startDateIso || '') <= t && (c.endDateIso || '') >= t)
+    return ranged || null
+  }, [activeCycles])
+
+  function onCycleClick() {
+    if (!user) {
+      nav('/signup')
+      return
+    }
+    nav('/profile#cycles')
+  }
 
   const derived = useMemo(() => {
     return buildDerivedSeries(activeEntries, activeProfile || {})
@@ -97,7 +147,9 @@ export default function Dashboard({ view = 'dashboard' }) {
       <div className="panel">
         <div className="panel-header">
           <h2>Summary</h2>
-          <div className="muted">Trend over noise. Weekly reality checks. No guesswork.</div>
+          <button className="btn" type="button" onClick={onCycleClick}>
+            {currentCycle ? titleCycle(currentCycle.type).toUpperCase() : 'CREATE NEW CYCLE'}
+          </button>
         </div>
 
         {(!summary || !derived.length) ? (

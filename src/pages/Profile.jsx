@@ -1,15 +1,26 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth'
 import { useAuth } from '../state/AuthContext.jsx'
 import { useProfile } from '../state/ProfileContext.jsx'
 import { downloadCsv, buildCsvRows } from '../utils/csv.js'
 import { buildDerivedSeries } from '../utils/calculations.js'
 import { listenEntries } from '../services/entries.js'
+import { listenCycles, startCycle, endCycle } from '../services/cycles.js'
+import { todayIso } from '../utils/date.js'
 
 const DEFAULT_LIFTS = ['Bench Press', 'Squat', 'Deadlift']
 
+function titleCycle(type) {
+  if (type === 'cut') return 'Cut'
+  if (type === 'bulk') return 'Bulk'
+  if (type === 'maintain') return 'Maintain'
+  return String(type || '')
+}
+
 export default function Profile() {
   const { user } = useAuth()
+  const loc = useLocation()
   const { profile, updateProfile, loading, profileError } = useProfile()
 
   const [sex, setSex] = useState(profile.sex || '')
@@ -32,6 +43,16 @@ export default function Profile() {
   const [newPw, setNewPw] = useState('')
   const [newPw2, setNewPw2] = useState('')
 
+  // cycles
+  const [cycles, setCycles] = useState([])
+  const [cycleType, setCycleType] = useState('cut')
+  const [cycleStart, setCycleStart] = useState(todayIso())
+  const [cyclesError, setCyclesError] = useState(null)
+
+  const activeCycle = useMemo(() => {
+    return cycles.find((c) => !c.endDateIso) || null
+  }, [cycles])
+
   // For CSV export (load entries on demand)
   const [entries, setEntries] = useState([])
   const [loadedEntries, setLoadedEntries] = useState(false)
@@ -49,6 +70,29 @@ export default function Profile() {
     setLift2(ln[1])
     setLift3(ln[2])
   }, [profile.sex, profile.height, profile.targetWeight, profile.triplemeasurements, profile.liftNames])
+
+
+  useEffect(() => {
+    if (loc?.hash === '#cycles') {
+      // allow render/layout
+      setTimeout(() => {
+        document.getElementById('cycles')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 50)
+    }
+  }, [loc?.hash])
+
+  useEffect(() => {
+    setCycles([])
+    setCyclesError(null)
+    if (!user) return
+
+    const unsub = listenCycles(
+      user.uid,
+      (data) => setCycles(data),
+      (err) => setCyclesError(err?.message || 'Failed to load cycles.')
+    )
+    return () => unsub()
+  }, [user])
 
   async function saveProfile(e) {
     e.preventDefault()
@@ -82,6 +126,41 @@ export default function Profile() {
       setMsg({ type: 'success', text: 'Profile saved.' })
     } catch (err) {
       setMsg({ type: 'error', text: err?.message || 'Failed to save profile.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onStartCycle(e) {
+    e.preventDefault()
+    setMsg(null)
+    setBusy(true)
+    try {
+      if (!cycleType) throw new Error('Pick a cycle type.')
+      if (!cycleStart) throw new Error('Pick a start date.')
+
+      await startCycle(user.uid, {
+        type: cycleType,
+        startDateIso: cycleStart,
+        activeCycle: activeCycle ? { id: activeCycle.id, startDateIso: activeCycle.startDateIso } : null,
+      })
+
+      setMsg({ type: 'success', text: `Cycle started: ${titleCycle(cycleType)}.` })
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.message || 'Failed to start cycle.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onEndCycle(cycleId) {
+    setMsg(null)
+    setBusy(true)
+    try {
+      await endCycle(user.uid, cycleId, todayIso())
+      setMsg({ type: 'success', text: 'Cycle ended.' })
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.message || 'Failed to end cycle.' })
     } finally {
       setBusy(false)
     }
@@ -214,6 +293,95 @@ export default function Profile() {
             <button className="btn" type="button" onClick={exportCsv} disabled={busy}>Export CSV</button>
           </div>
         </form>
+      </div>
+
+      <div className="panel" id="cycles">
+        <div className="panel-header">
+          <h2>Cycles</h2>
+          <div className="muted">Cut / Bulk / Maintain — track your phases over time.</div>
+        </div>
+
+        {cyclesError && <div className="notice error" style={{ marginTop: 12 }}>{cyclesError}</div>}
+
+        <form onSubmit={onStartCycle} style={{ marginTop: 12 }}>
+          <div className="row">
+            <div className="field">
+              <label>Cycle type</label>
+              <select value={cycleType} onChange={(e) => setCycleType(e.target.value)}>
+                <option value="cut">Cut</option>
+                <option value="bulk">Bulk</option>
+                <option value="maintain">Maintain</option>
+              </select>
+            </div>
+
+            <div className="field">
+              <label>Start date</label>
+              <input type="date" value={cycleStart} onChange={(e) => setCycleStart(e.target.value)} />
+            </div>
+
+            <div className="field" style={{ minWidth: 220 }}>
+              <label>Current</label>
+              <input value={activeCycle ? `${titleCycle(activeCycle.type)} (since ${activeCycle.startDateIso})` : 'No active cycle'} readOnly />
+            </div>
+          </div>
+
+          <div className="footer-actions">
+            <button className="btn primary" disabled={busy}>{activeCycle ? 'Start new cycle (ends current)' : 'Start cycle'}</button>
+            {activeCycle && (
+              <button className="btn" type="button" onClick={() => onEndCycle(activeCycle.id)} disabled={busy}>
+                End current cycle (today)
+              </button>
+            )}
+          </div>
+        </form>
+
+        <hr className="sep" />
+
+        <div className="table-wrap">
+          <table className="table" style={{ minWidth: 760 }}>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Began</th>
+                <th>Ended</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cycles.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="muted">No cycles yet. Start one above.</td>
+                </tr>
+              ) : (
+                cycles.map((c) => {
+                  const isActive = !c.endDateIso
+                  return (
+                    <tr key={c.id}>
+                      <td><b>{titleCycle(c.type)}</b></td>
+                      <td>{c.startDateIso || '—'}</td>
+                      <td>{c.endDateIso || '—'}</td>
+                      <td>
+                        {isActive ? <span className="text-green strong">Active</span> : <span className="muted">Ended</span>}
+                      </td>
+                      <td>
+                        {isActive ? (
+                          <button className="btn" type="button" onClick={() => onEndCycle(c.id)} disabled={busy}>End today</button>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="small" style={{ marginTop: 10 }}>
+          Tip: cycles are for your own bookkeeping. They don’t change calculations — they just help you interpret trends in context.
+        </div>
       </div>
 
       <div className="panel">
