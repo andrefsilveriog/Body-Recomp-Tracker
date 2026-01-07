@@ -49,7 +49,7 @@ export default function EntryForm({ tripleEnabled, onSubmit, busy }) {
     Number.isFinite(Number(benchLoad)) && Number.isFinite(Number(benchReps)) &&
     Number.isFinite(Number(squatLoad)) && Number.isFinite(Number(squatReps)) &&
     Number.isFinite(Number(deadliftLoad)) && Number.isFinite(Number(deadliftReps))
-
+  )
   async function handleSubmit(e) {
     e.preventDefault()
     if (!validDaily()) return
