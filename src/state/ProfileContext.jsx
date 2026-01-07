@@ -12,6 +12,7 @@ const DEFAULT_PROFILE = {
   targetWeight: '',
   triplemeasurements: false,
   liftNames: ['Bench Press','Squat','Deadlift'],
+  cycles: [],
   createdAt: null,
 }
 
@@ -39,6 +40,7 @@ export function ProfileProvider({ children }) {
           targetWeight: null,
           triplemeasurements: false,
           liftNames: ['Bench Press','Squat','Deadlift'],
+          cycles: [],
           createdAt: serverTimestamp(),
         })
         return
@@ -51,6 +53,7 @@ export function ProfileProvider({ children }) {
         targetWeight: (data.targetWeight ?? ''),
         triplemeasurements: !!data.triplemeasurements,
         liftNames: (Array.isArray(data.liftNames) && data.liftNames.length===3) ? data.liftNames : ['Bench Press','Squat','Deadlift'],
+        cycles: Array.isArray(data.cycles) ? data.cycles : [],
         createdAt: data.createdAt || null,
       })
       setLoading(false)

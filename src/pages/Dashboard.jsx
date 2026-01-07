@@ -5,7 +5,7 @@ import { useProfile } from '../state/ProfileContext.jsx'
 import { listenEntries } from '../services/entries.js'
 import { buildDerivedSeries, computeWeeklyAnalysis } from '../utils/calculations.js'
 import { buildSampleEntries, buildSampleProfile } from '../utils/sampleData.js'
-import { listenCycles } from '../services/cycles.js'
+// cycles are stored inside the user's profile document
 import { todayIso } from '../utils/date.js'
 
 import WeightTrendChart from '../components/Charts/WeightTrendChart.jsx'
@@ -32,7 +32,7 @@ export default function Dashboard({ view = 'dashboard' }) {
   const { profile } = useProfile()
   const liftNames = (Array.isArray(profile?.liftNames) && profile.liftNames.length===3) ? profile.liftNames : ['Bench Press','Squat','Deadlift']
   const [entries, setEntries] = useState([])
-  const [cycles, setCycles] = useState([])
+  const cycles = (Array.isArray(profile?.cycles) ? profile.cycles : [])
   const [error, setError] = useState(null)
 
   useEffect(() => {
@@ -42,19 +42,7 @@ export default function Dashboard({ view = 'dashboard' }) {
     return () => unsub()
   }, [user])
 
-  // cycles
-  useEffect(() => {
-    if (!user) {
-      setCycles([])
-      return
-    }
-    const unsub = listenCycles(
-      user.uid,
-      (data) => setCycles(data),
-      () => {}
-    )
-    return () => unsub()
-  }, [user])
+  // cycles are provided by ProfileContext snapshot
 
   const demoProfile = useMemo(() => buildSampleProfile(), [])
   const demoEntries = useMemo(() => buildSampleEntries(60), [])
@@ -147,8 +135,8 @@ export default function Dashboard({ view = 'dashboard' }) {
       <div className="panel">
         <div className="panel-header">
           <h2>Summary</h2>
-          <button className="btn" type="button" onClick={onCycleClick}>
-            {currentCycle ? titleCycle(currentCycle.type).toUpperCase() : 'CREATE NEW CYCLE'}
+          <button className="btn" type="button" onClick={onCycleClick} style={{ textTransform: 'none' }}>
+            {currentCycle ? titleCycle(currentCycle.type) : 'Create new cycle'}
           </button>
         </div>
 

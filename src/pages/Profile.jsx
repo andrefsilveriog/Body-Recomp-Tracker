@@ -6,7 +6,7 @@ import { useProfile } from '../state/ProfileContext.jsx'
 import { downloadCsv, buildCsvRows } from '../utils/csv.js'
 import { buildDerivedSeries } from '../utils/calculations.js'
 import { listenEntries } from '../services/entries.js'
-import { listenCycles, startCycle, endCycle } from '../services/cycles.js'
+import { startCycle, endCycle } from '../services/cycles.js'
 import { todayIso } from '../utils/date.js'
 
 const DEFAULT_LIFTS = ['Bench Press', 'Squat', 'Deadlift']
@@ -44,10 +44,11 @@ export default function Profile() {
   const [newPw2, setNewPw2] = useState('')
 
   // cycles
-  const [cycles, setCycles] = useState([])
+  const cycles = useMemo(() => {
+    return Array.isArray(profile.cycles) ? [...profile.cycles].sort((a, b) => String(b.startDateIso||'').localeCompare(String(a.startDateIso||''))) : []
+  }, [profile.cycles])
   const [cycleType, setCycleType] = useState('cut')
   const [cycleStart, setCycleStart] = useState(todayIso())
-  const [cyclesError, setCyclesError] = useState(null)
 
   const activeCycle = useMemo(() => {
     return cycles.find((c) => !c.endDateIso) || null
@@ -81,18 +82,7 @@ export default function Profile() {
     }
   }, [loc?.hash])
 
-  useEffect(() => {
-    setCycles([])
-    setCyclesError(null)
-    if (!user) return
-
-    const unsub = listenCycles(
-      user.uid,
-      (data) => setCycles(data),
-      (err) => setCyclesError(err?.message || 'Failed to load cycles.')
-    )
-    return () => unsub()
-  }, [user])
+  // cycles are stored inside the profile doc and auto-update via ProfileContext
 
   async function saveProfile(e) {
     e.preventDefault()
@@ -139,11 +129,7 @@ export default function Profile() {
       if (!cycleType) throw new Error('Pick a cycle type.')
       if (!cycleStart) throw new Error('Pick a start date.')
 
-      await startCycle(user.uid, {
-        type: cycleType,
-        startDateIso: cycleStart,
-        activeCycle: activeCycle ? { id: activeCycle.id, startDateIso: activeCycle.startDateIso } : null,
-      })
+      await startCycle(user.uid, { type: cycleType, startDateIso: cycleStart })
 
       setMsg({ type: 'success', text: `Cycle started: ${titleCycle(cycleType)}.` })
     } catch (err) {
@@ -301,7 +287,7 @@ export default function Profile() {
           <div className="muted">Cut / Bulk / Maintain — track your phases over time.</div>
         </div>
 
-        {cyclesError && <div className="notice error" style={{ marginTop: 12 }}>{cyclesError}</div>}
+        {/* cycles are stored in the profile doc; no extra Firestore rules needed */}
 
         <form onSubmit={onStartCycle} style={{ marginTop: 12 }}>
           <div className="row">
@@ -379,9 +365,7 @@ export default function Profile() {
           </table>
         </div>
 
-        <div className="small" style={{ marginTop: 10 }}>
-          Tip: cycles are for your own bookkeeping. They don’t change calculations — they just help you interpret trends in context.
-        </div>
+        
       </div>
 
       <div className="panel">

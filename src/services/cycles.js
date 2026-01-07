@@ -1,80 +1,112 @@
 import {
-  collection,
   doc,
   onSnapshot,
-  orderBy,
-  query,
+  runTransaction,
   serverTimestamp,
-  setDoc,
-  updateDoc,
-  writeBatch,
 } from 'firebase/firestore'
 
 import { db } from '../firebase.js'
 import { addDaysIso } from '../utils/date.js'
 
-export function listenCycles(userId, onData, onError) {
-  const colRef = collection(db, 'users', userId, 'cycles')
-  const q = query(colRef, orderBy('startDateIso', 'desc'))
+function isValidType(type) {
+  return ['cut', 'bulk', 'maintain'].includes(type)
+}
 
+function normalizeCycles(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((c) => c && typeof c === 'object')
+    .map((c) => ({
+      id: String(c.id || ''),
+      type: String(c.type || ''),
+      startDateIso: c.startDateIso || '',
+      endDateIso: c.endDateIso ?? null,
+    }))
+    .filter((c) => c.id && isValidType(c.type) && c.startDateIso)
+}
+
+function newId() {
+  // deterministic enough for small personal use; avoids needing a subcollection
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+/**
+ * Cycles are stored inside the user's profile document (users/{uid}.cycles).
+ * This avoids extra Firestore rules and prevents "Missing or insufficient permissions"
+ * when rules only allow access to the user's profile + entries.
+ */
+export function listenCycles(userId, onData, onError) {
+  const ref = doc(db, 'users', userId)
   return onSnapshot(
-    q,
+    ref,
     (snap) => {
-      const cycles = []
-      snap.forEach((d) => {
-        cycles.push({ id: d.id, ...d.data() })
-      })
-      onData(cycles)
+      const data = snap.data() || {}
+      onData(normalizeCycles(data.cycles))
     },
     onError
   )
 }
 
-/**
- * Start a new cycle. Optionally closes the currently active cycle (endDateIso === null)
- * on the day before the new start date (or the active start date if that would go earlier).
- */
-export async function startCycle(userId, { type, startDateIso, activeCycle = null }) {
+export async function startCycle(userId, { type, startDateIso }) {
   if (!userId) throw new Error('Not authenticated')
-  if (!type || !['cut', 'bulk', 'maintain'].includes(type)) throw new Error('Invalid cycle type')
-  if (!startDateIso) throw new Error('startDateIso is required')
+  if (!isValidType(type)) throw new Error('Invalid cycle type')
+  if (!startDateIso) throw new Error('Start date is required')
 
-  const batch = writeBatch(db)
+  const ref = doc(db, 'users', userId)
 
-  if (activeCycle?.id) {
-    // End the previous cycle the day before the new cycle starts (most natural non-overlap)
-    let endIso = addDaysIso(startDateIso, -1)
-    if (activeCycle.startDateIso && endIso < activeCycle.startDateIso) {
-      endIso = activeCycle.startDateIso
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref)
+    if (!snap.exists()) throw new Error('Profile not found. Please refresh and try again.')
+
+    const data = snap.data() || {}
+    const cycles = normalizeCycles(data.cycles)
+
+    // End any active cycle (endDateIso === null) on the day before the new cycle begins.
+    const updated = cycles.map((c) => ({ ...c }))
+    const activeIdx = updated.findIndex((c) => c.endDateIso === null)
+    if (activeIdx >= 0) {
+      const active = updated[activeIdx]
+      let endIso = addDaysIso(startDateIso, -1)
+      if (active.startDateIso && endIso < active.startDateIso) endIso = active.startDateIso
+      updated[activeIdx] = { ...active, endDateIso: endIso }
     }
-    const activeRef = doc(db, 'users', userId, 'cycles', activeCycle.id)
-    batch.update(activeRef, {
-      endDateIso: endIso,
+
+    updated.push({
+      id: newId(),
+      type,
+      startDateIso,
+      endDateIso: null,
+    })
+
+    tx.update(ref, {
+      cycles: updated,
       updatedAt: serverTimestamp(),
     })
-  }
-
-  const colRef = collection(db, 'users', userId, 'cycles')
-  const newRef = doc(colRef) // auto-id
-  batch.set(newRef, {
-    type,
-    startDateIso,
-    endDateIso: null,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
   })
-
-  await batch.commit()
 }
 
 export async function endCycle(userId, cycleId, endDateIso) {
   if (!userId) throw new Error('Not authenticated')
   if (!cycleId) throw new Error('cycleId is required')
-  if (!endDateIso) throw new Error('endDateIso is required')
+  if (!endDateIso) throw new Error('End date is required')
 
-  const ref = doc(db, 'users', userId, 'cycles', cycleId)
-  await updateDoc(ref, {
-    endDateIso,
-    updatedAt: serverTimestamp(),
+  const ref = doc(db, 'users', userId)
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref)
+    if (!snap.exists()) throw new Error('Profile not found. Please refresh and try again.')
+
+    const data = snap.data() || {}
+    const cycles = normalizeCycles(data.cycles)
+    const idx = cycles.findIndex((c) => c.id === cycleId)
+    if (idx < 0) throw new Error('Cycle not found.')
+
+    const updated = cycles.map((c) => ({ ...c }))
+    updated[idx] = { ...updated[idx], endDateIso }
+
+    tx.update(ref, {
+      cycles: updated,
+      updatedAt: serverTimestamp(),
+    })
   })
 }
