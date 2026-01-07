@@ -9,43 +9,19 @@ export function caloriesFromMacros({ protein, carbs, fats }) {
   return (p * 4) + (c * 4) + (f * 9)
 }
 
-
-export function epley1rm(loadKg, reps) {
-  const w = Number(loadKg)
-  const r = Number(reps)
-  if (!Number.isFinite(w) || w <= 0) return null
-  if (!Number.isFinite(r) || r <= 0) return null
-  // Epley formula: 1RM = weight * (1 + reps/30)
-  const oneRm = w * (1 + (r / 30))
-  return Number.isFinite(oneRm) ? oneRm : null
-}
-
-
-function liftOneRmFromEntry(entry, lift) {
-  // New schema: liftLoad + liftReps
-  const load = entry?.[`${lift}Load`]
-  const reps = entry?.[`${lift}Reps`]
-  const oneRm = epley1rm(load, reps)
-  if (Number.isFinite(oneRm)) return oneRm
-  // Back-compat: old schema stored bench/squat/deadlift directly
-  const legacy = Number(entry?.[lift])
-  return Number.isFinite(legacy) ? legacy : null
-}
-
 export function avgStrength({ bench, squat, deadlift }) {
-  const b = Number(bench ?? 0)
-  const s = Number(squat ?? 0)
-  const d = Number(deadlift ?? 0)
-  return (b + s + d) / 3
+  const nums = [bench, squat, deadlift].map((x) => Number(x)).filter((x) => Number.isFinite(x))
+  if (!nums.length) return null
+  return nums.reduce((a, b) => a + b, 0) / nums.length
 }
 
 export function ewmaSeries(values, alpha = ALPHA_7DAY) {
-  // values: array of numbers (or null). null breaks smoothing (returns null).
   const out = []
   let prev = null
   for (const v of values) {
     if (!Number.isFinite(v)) {
-      out.push(null)
+      // keep trend continuous when a day is missing (common for lifts)
+      out.push(prev)
       continue
     }
     if (prev === null) {
@@ -125,14 +101,11 @@ export function buildDerivedSeries(entries, profile) {
     protein: num(e.protein),
     carbs: num(e.carbs),
     fats: num(e.fats),
-    bench: liftOneRmFromEntry(e, 'bench'),
-    squat: liftOneRmFromEntry(e, 'squat'),
-    deadlift: liftOneRmFromEntry(e, 'deadlift'),
-    bench1rm: liftOneRmFromEntry(e, 'bench'),
-    squat1rm: liftOneRmFromEntry(e, 'squat'),
-    deadlift1rm: liftOneRmFromEntry(e, 'deadlift'),
+    bench: num(e.bench),
+    squat: num(e.squat),
+    deadlift: num(e.deadlift),
     calories: caloriesFromMacros(e),
-    avgStrength: avgStrength({ bench: liftOneRmFromEntry(e, 'bench'), squat: liftOneRmFromEntry(e, 'squat'), deadlift: liftOneRmFromEntry(e, 'deadlift') }),
+    avgStrength: avgStrength(e),
     bfPct: bodyFatNavyPct({ sex, heightCm: height, entry: e, tripleEnabled: triple }),
   }))
 

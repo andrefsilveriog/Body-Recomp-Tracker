@@ -12,8 +12,9 @@ function parseMaybeNumber(v) {
   return Number.isFinite(n) ? n : null
 }
 
-export default function EntryTable({ userId, entries, tripleEnabled }) {
+export default function EntryTable({ userId, entries, tripleEnabled, liftNames }) {
   const [saving, setSaving] = useState(false)
+  const ln = Array.isArray(liftNames) && liftNames.length === 3 ? liftNames : ['Bench Press','Squat','Deadlift']
   const [msg, setMsg] = useState(null)
 
   const cols = useMemo(() => {
@@ -23,12 +24,9 @@ export default function EntryTable({ userId, entries, tripleEnabled }) {
       { key: 'protein', label: 'Protein' },
       { key: 'carbs', label: 'Carbs' },
       { key: 'fats', label: 'Fats' },
-      { key: 'benchLoad', label: 'Bench kg' },
-      { key: 'benchReps', label: 'Bench reps' },
-      { key: 'squatLoad', label: 'Squat kg' },
-      { key: 'squatReps', label: 'Squat reps' },
-      { key: 'deadliftLoad', label: 'Deadlift kg' },
-      { key: 'deadliftReps', label: 'Deadlift reps' },
+      { key: 'bench', label: ln[0] },
+      { key: 'squat', label: ln[1] },
+      { key: 'deadlift', label: ln[2] },
     ]
 
     if (!tripleEnabled) {
@@ -43,7 +41,7 @@ export default function EntryTable({ userId, entries, tripleEnabled }) {
 
     base.push({ key: '_actions', label: 'Actions', readOnly: true })
     return base
-  }, [tripleEnabled])
+  }, [tripleEnabled, liftNames])
 
   async function saveCell(dateIso, key, value) {
     if (key === 'dateIso' || key === '_actions') return

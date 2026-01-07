@@ -19,6 +19,7 @@ function fmt(n, d=1) {
 export default function Dashboard({ view = 'dashboard' }) {
   const { user } = useAuth()
   const { profile } = useProfile()
+  const liftNames = (Array.isArray(profile?.liftNames) && profile.liftNames.length===3) ? profile.liftNames : ['Bench Press','Squat','Deadlift']
   const [entries, setEntries] = useState([])
   const [error, setError] = useState(null)
 
@@ -150,7 +151,7 @@ export default function Dashboard({ view = 'dashboard' }) {
             <WeightTrendChart derived={derived} />
           </div>
           <div style={{ gridColumn: 'span 12' }}>
-            <StrengthChart derived={derived} />
+            <StrengthChart derived={derived} liftNames={liftNames} />
           </div>
           <div style={{ gridColumn: 'span 12' }}>
             <OverlayChart derived={derived} />

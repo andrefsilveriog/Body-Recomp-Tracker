@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth'
 import { useAuth } from '../state/AuthContext.jsx'
 import { useProfile } from '../state/ProfileContext.jsx'
@@ -14,6 +14,9 @@ export default function Profile() {
   const [height, setHeight] = useState(profile.height || '')
   const [targetWeight, setTargetWeight] = useState(profile.targetWeight ?? '')
   const [triple, setTriple] = useState(!!profile.triplemeasurements)
+  const [lift1, setLift1] = useState((profile.liftNames?.[0]) || 'Bench Press')
+  const [lift2, setLift2] = useState((profile.liftNames?.[1]) || 'Squat')
+  const [lift3, setLift3] = useState((profile.liftNames?.[2]) || 'Deadlift')
 
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
@@ -155,6 +158,21 @@ export default function Profile() {
                 <option value="1">On (up to 3 readings per site)</option>
               </select>
             </div>
+          <div className="grid" style={{ marginTop: 12 }}>
+            <div className="field">
+              <label>Lift 1 name</label>
+              <input value={lift1} onChange={(e) => setLift1(e.target.value)} placeholder="Bench Press" />
+            </div>
+            <div className="field">
+              <label>Lift 2 name</label>
+              <input value={lift2} onChange={(e) => setLift2(e.target.value)} placeholder="Squat" />
+            </div>
+            <div className="field">
+              <label>Lift 3 name</label>
+              <input value={lift3} onChange={(e) => setLift3(e.target.value)} placeholder="Deadlift" />
+            </div>
+          </div>
+
           </div>
 
           <div className="footer-actions">
@@ -184,6 +202,21 @@ export default function Profile() {
               <label>Confirm new password</label>
               <input type="password" value={newPw2} onChange={(e) => setNewPw2(e.target.value)} required />
             </div>
+          <div className="grid" style={{ marginTop: 12 }}>
+            <div className="field">
+              <label>Lift 1 name</label>
+              <input value={lift1} onChange={(e) => setLift1(e.target.value)} placeholder="Bench Press" />
+            </div>
+            <div className="field">
+              <label>Lift 2 name</label>
+              <input value={lift2} onChange={(e) => setLift2(e.target.value)} placeholder="Squat" />
+            </div>
+            <div className="field">
+              <label>Lift 3 name</label>
+              <input value={lift3} onChange={(e) => setLift3(e.target.value)} placeholder="Deadlift" />
+            </div>
+          </div>
+
           </div>
 
           <div className="footer-actions">

@@ -9,6 +9,8 @@ export default function Entry() {
   const { user } = useAuth()
   const { profile } = useProfile()
 
+  const liftNames = (Array.isArray(profile?.liftNames) && profile.liftNames.length===3) ? profile.liftNames : ['Bench Press','Squat','Deadlift']
+
   const [entries, setEntries] = useState([])
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
@@ -42,9 +44,9 @@ export default function Entry() {
         </div>
       )}
 
-      <EntryForm tripleEnabled={tripleEnabled} onSubmit={submitEntry} busy={busy} />
+      <EntryForm tripleEnabled={tripleEnabled} liftNames={liftNames} onSubmit={submitEntry} busy={busy} />
 
-      <EntryTable userId={user.uid} entries={entries} tripleEnabled={tripleEnabled} />
+      <EntryTable userId={user.uid} entries={entries} tripleEnabled={tripleEnabled} liftNames={liftNames} />
     </>
   )
 }
