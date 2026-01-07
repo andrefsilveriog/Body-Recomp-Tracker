@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
+import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { parseDateIso, sortByDateIsoAsc } from '../utils/date.js'
 
@@ -40,6 +40,22 @@ export async function upsertEntry(userId, entry) {
 export async function patchEntry(userId, dateIso, patch) {
   const ref = doc(db, 'users', userId, 'entries', dateIso)
   await updateDoc(ref, { ...patch, updatedAt: serverTimestamp() })
+}
+
+/**
+ * Batch update multiple entries at once.
+ * patches: Array<{ dateIso: string, patch: Record<string, any> }>
+ */
+export async function batchPatchEntries(userId, patches) {
+  const batch = writeBatch(db)
+  for (const p of patches || []) {
+    const dateIso = p?.dateIso
+    const patch = p?.patch
+    if (!dateIso || !patch) continue
+    const ref = doc(db, 'users', userId, 'entries', dateIso)
+    batch.update(ref, { ...patch, updatedAt: serverTimestamp() })
+  }
+  await batch.commit()
 }
 
 export async function removeEntry(userId, dateIso) {

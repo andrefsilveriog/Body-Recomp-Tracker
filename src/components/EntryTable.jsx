@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import { patchEntry, removeEntry } from '../services/entries.js'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { batchPatchEntries, removeEntry } from '../services/entries.js'
 import { oneRepMaxKg } from '../utils/calculations.js'
 
 function toStr(v) {
@@ -8,16 +8,64 @@ function toStr(v) {
 }
 
 function parseMaybeNumber(v) {
-  if (v === '') return null
+  if (v === '' || v === null || v === undefined) return null
   const n = Number(v)
   return Number.isFinite(n) ? n : null
 }
 
+function cellKey(dateIso, key) {
+  return `${dateIso}::${key}`
+}
+
 export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNames }) {
   const [saving, setSaving] = useState(false)
-  const isFemale = String(sex || '').toLowerCase() === 'female'
-  const ln = Array.isArray(liftNames) && liftNames.length === 3 ? liftNames : ['Bench Press','Squat','Deadlift']
   const [msg, setMsg] = useState(null)
+
+  // Draft values are stored as strings so editing feels natural.
+  const [draft, setDraft] = useState({}) // { [cellKey]: string }
+  const [dirty, setDirty] = useState({}) // { [cellKey]: true }
+  const [undoStack, setUndoStack] = useState([]) // [{ ck, prev, next }]
+  const [redoStack, setRedoStack] = useState([])
+
+  const focusStartRef = useRef({}) // { [cellKey]: string }
+
+  const isFemale = String(sex || '').toLowerCase() === 'female'
+  const ln = Array.isArray(liftNames) && liftNames.length === 3 ? liftNames : ['Bench Press', 'Squat', 'Deadlift']
+
+  const baseByDate = useMemo(() => {
+    const m = new Map()
+    for (const e of entries || []) m.set(e.dateIso, e)
+    return m
+  }, [entries])
+
+  // Clean up draft/dirty when entries change (e.g., deletion)
+  useEffect(() => {
+    const existing = new Set((entries || []).map((e) => e.dateIso))
+    setDraft((prev) => {
+      const next = { ...prev }
+      let changed = false
+      for (const ck of Object.keys(next)) {
+        const [dateIso] = ck.split('::')
+        if (!existing.has(dateIso)) {
+          delete next[ck]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    setDirty((prev) => {
+      const next = { ...prev }
+      let changed = false
+      for (const ck of Object.keys(next)) {
+        const [dateIso] = ck.split('::')
+        if (!existing.has(dateIso)) {
+          delete next[ck]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [entries])
 
   const cols = useMemo(() => {
     const base = [
@@ -51,10 +99,90 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
 
     base.push({ key: '_actions', label: 'Actions', readOnly: true })
     return base
-  }, [tripleEnabled, liftNames, sex])
+  }, [tripleEnabled, isFemale, ln])
 
-  function getRow(dateIso) {
-    return (entries || []).find((x) => x.dateIso === dateIso) || null
+  function baseValue(dateIso, key) {
+    const row = baseByDate.get(dateIso)
+    return toStr(row?.[key])
+  }
+
+  function displayValue(dateIso, key) {
+    const ck = cellKey(dateIso, key)
+    if (Object.prototype.hasOwnProperty.call(draft, ck)) return draft[ck]
+    return baseValue(dateIso, key)
+  }
+
+  function setCellValue(dateIso, key, valueStr) {
+    const ck = cellKey(dateIso, key)
+    const base = baseValue(dateIso, key)
+
+    setDraft((prev) => {
+      const next = { ...prev }
+      // If it matches base, we don't need to store a draft override.
+      if (valueStr === base) {
+        if (Object.prototype.hasOwnProperty.call(next, ck)) delete next[ck]
+      } else {
+        next[ck] = valueStr
+      }
+      return next
+    })
+
+    setDirty((prev) => {
+      const next = { ...prev }
+      if (valueStr === base) {
+        if (Object.prototype.hasOwnProperty.call(next, ck)) delete next[ck]
+      } else {
+        next[ck] = true
+      }
+      return next
+    })
+  }
+
+  function handleFocus(dateIso, key) {
+    const ck = cellKey(dateIso, key)
+    focusStartRef.current[ck] = displayValue(dateIso, key)
+  }
+
+  function handleBlur(dateIso, key) {
+    const ck = cellKey(dateIso, key)
+    const start = focusStartRef.current[ck]
+    delete focusStartRef.current[ck]
+    const end = displayValue(dateIso, key)
+
+    // Only commit a history action if there was a real change for this focus session.
+    if (start !== undefined && start !== end) {
+      setUndoStack((prev) => [...prev, { ck, dateIso, key, prev: start, next: end }])
+      setRedoStack([])
+    }
+  }
+
+  function applyActionValue(action, valueStr) {
+    // Apply without recording a new history action.
+    setCellValue(action.dateIso, action.key, valueStr)
+  }
+
+  function undo() {
+    setMsg(null)
+    setUndoStack((prev) => {
+      if (prev.length === 0) return prev
+      const next = [...prev]
+      const action = next.pop()
+      applyActionValue(action, action.prev)
+      setRedoStack((r) => [...r, action])
+      return next
+    })
+  }
+
+  function redo() {
+    setMsg(null)
+    setRedoStack((prev) => {
+      if (prev.length === 0) return prev
+      const next = [...prev]
+      const action = next.pop()
+      applyActionValue(action, action.next)
+      setUndoStack((u) => [...u, action])
+      return next
+    })
   }
 
   function maybeOrm(load, reps) {
@@ -62,34 +190,58 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
     return Number.isFinite(orm) ? Math.round(orm * 10) / 10 : null
   }
 
-  async function saveCell(dateIso, key, value) {
-    if (key === 'dateIso' || key === '_actions') return
+  async function saveAll() {
+    const dirtyKeys = Object.keys(dirty || {})
+    if (dirtyKeys.length === 0) return
     setMsg(null)
     setSaving(true)
     try {
-      const v = parseMaybeNumber(value)
-      const row = getRow(dateIso)
+      const patchesByDate = {}
 
-      // If a lift load/reps changes, also recompute and store its 1RM into the existing lift field
-      // (bench/squat/deadlift) so charts/analysis remain unchanged.
-      if (key === 'benchLoad' || key === 'benchReps') {
-        const load = key === 'benchLoad' ? v : parseMaybeNumber(row?.benchLoad ?? '')
-        const reps = key === 'benchReps' ? v : parseMaybeNumber(row?.benchReps ?? '')
-        await patchEntry(userId, dateIso, { [key]: v, bench: maybeOrm(load, reps) })
-      } else if (key === 'squatLoad' || key === 'squatReps') {
-        const load = key === 'squatLoad' ? v : parseMaybeNumber(row?.squatLoad ?? '')
-        const reps = key === 'squatReps' ? v : parseMaybeNumber(row?.squatReps ?? '')
-        await patchEntry(userId, dateIso, { [key]: v, squat: maybeOrm(load, reps) })
-      } else if (key === 'deadliftLoad' || key === 'deadliftReps') {
-        const load = key === 'deadliftLoad' ? v : parseMaybeNumber(row?.deadliftLoad ?? '')
-        const reps = key === 'deadliftReps' ? v : parseMaybeNumber(row?.deadliftReps ?? '')
-        await patchEntry(userId, dateIso, { [key]: v, deadlift: maybeOrm(load, reps) })
-      } else {
-        await patchEntry(userId, dateIso, { [key]: v })
+      for (const ck of dirtyKeys) {
+        const [dateIso, key] = ck.split('::')
+        const valueStr = displayValue(dateIso, key)
+        const v = parseMaybeNumber(valueStr)
+        if (!patchesByDate[dateIso]) patchesByDate[dateIso] = {}
+        patchesByDate[dateIso][key] = v
       }
-      setMsg({ type: 'success', text: 'Saved.' })
+
+      // If load/reps changed, recompute and store 1RM into bench/squat/deadlift
+      for (const dateIso of Object.keys(patchesByDate)) {
+        const base = baseByDate.get(dateIso) || {}
+        const patch = patchesByDate[dateIso]
+
+        const hasBench = Object.prototype.hasOwnProperty.call(patch, 'benchLoad') || Object.prototype.hasOwnProperty.call(patch, 'benchReps')
+        const hasSquat = Object.prototype.hasOwnProperty.call(patch, 'squatLoad') || Object.prototype.hasOwnProperty.call(patch, 'squatReps')
+        const hasDead = Object.prototype.hasOwnProperty.call(patch, 'deadliftLoad') || Object.prototype.hasOwnProperty.call(patch, 'deadliftReps')
+
+        if (hasBench) {
+          const load = Object.prototype.hasOwnProperty.call(patch, 'benchLoad') ? patch.benchLoad : (base.benchLoad ?? null)
+          const reps = Object.prototype.hasOwnProperty.call(patch, 'benchReps') ? patch.benchReps : (base.benchReps ?? null)
+          patch.bench = maybeOrm(load, reps)
+        }
+        if (hasSquat) {
+          const load = Object.prototype.hasOwnProperty.call(patch, 'squatLoad') ? patch.squatLoad : (base.squatLoad ?? null)
+          const reps = Object.prototype.hasOwnProperty.call(patch, 'squatReps') ? patch.squatReps : (base.squatReps ?? null)
+          patch.squat = maybeOrm(load, reps)
+        }
+        if (hasDead) {
+          const load = Object.prototype.hasOwnProperty.call(patch, 'deadliftLoad') ? patch.deadliftLoad : (base.deadliftLoad ?? null)
+          const reps = Object.prototype.hasOwnProperty.call(patch, 'deadliftReps') ? patch.deadliftReps : (base.deadliftReps ?? null)
+          patch.deadlift = maybeOrm(load, reps)
+        }
+      }
+
+      const patches = Object.keys(patchesByDate).map((dateIso) => ({ dateIso, patch: patchesByDate[dateIso] }))
+      await batchPatchEntries(userId, patches)
+
+      setDraft({})
+      setDirty({})
+      setUndoStack([])
+      setRedoStack([])
+      setMsg({ type: 'success', text: 'Saved changes.' })
     } catch (e) {
-      setMsg({ type: 'error', text: e?.message || 'Failed to save.' })
+      setMsg({ type: 'error', text: e?.message || 'Failed to save changes.' })
     } finally {
       setSaving(false)
     }
@@ -101,6 +253,21 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
     setSaving(true)
     try {
       await removeEntry(userId, dateIso)
+      // Clear draft/dirty for this row
+      setDraft((prev) => {
+        const next = { ...prev }
+        for (const k of Object.keys(next)) {
+          if (k.startsWith(`${dateIso}::`)) delete next[k]
+        }
+        return next
+      })
+      setDirty((prev) => {
+        const next = { ...prev }
+        for (const k of Object.keys(next)) {
+          if (k.startsWith(`${dateIso}::`)) delete next[k]
+        }
+        return next
+      })
       setMsg({ type: 'success', text: 'Deleted.' })
     } catch (e) {
       setMsg({ type: 'error', text: e?.message || 'Failed to delete.' })
@@ -109,11 +276,22 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
     }
   }
 
+  const hasChanges = Object.keys(dirty || {}).length > 0
+
   return (
     <div className="panel">
       <div className="panel-header">
         <h2>All Entries</h2>
-        <div className="muted">Inline edit → blur to save. {saving ? 'Saving…' : ''}</div>
+        <div className="nav-actions" style={{ justifyContent: 'flex-end' }}>
+          <button className="btn" onClick={undo} disabled={undoStack.length === 0 || saving}>Undo</button>
+          <button className="btn" onClick={redo} disabled={redoStack.length === 0 || saving}>Redo</button>
+          <button className="btn primary" onClick={saveAll} disabled={!hasChanges || saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+        <div className="muted">
+          Edit cells, then click Save. {hasChanges ? `${Object.keys(dirty).length} change(s) pending.` : 'No unsaved changes.'}
+        </div>
       </div>
 
       {msg && (
@@ -136,7 +314,7 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
                   if (c.key === '_actions') {
                     return (
                       <td key={c.key}>
-                        <button className="btn danger" onClick={() => deleteRow(e.dateIso)}>Delete</button>
+                        <button className="btn danger" onClick={() => deleteRow(e.dateIso)} disabled={saving}>Delete</button>
                       </td>
                     )
                   }
@@ -145,8 +323,10 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
                   return (
                     <td key={c.key}>
                       <input
-                        defaultValue={toStr(e[c.key])}
-                        onBlur={(ev) => saveCell(e.dateIso, c.key, ev.target.value)}
+                        value={displayValue(e.dateIso, c.key)}
+                        onChange={(ev) => setCellValue(e.dateIso, c.key, ev.target.value)}
+                        onFocus={() => handleFocus(e.dateIso, c.key)}
+                        onBlur={() => handleBlur(e.dateIso, c.key)}
                         inputMode="decimal"
                       />
                     </td>
