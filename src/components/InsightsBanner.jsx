@@ -273,8 +273,6 @@ export default function InsightsBanner({ derived, weekly, profile, currentCycle 
         }
       }
     }
-      }
-    }
 
     // If there is no weekly data yet, still show a small nudge
     if (!week) {
