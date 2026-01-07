@@ -35,6 +35,11 @@ export default function Profile() {
   const [lift2, setLift2] = useState(initialLiftNames[1])
   const [lift3, setLift3] = useState(initialLiftNames[2])
 
+  const liftNames = useMemo(() => {
+    const a = [lift1, lift2, lift3].map((s, i) => (String(s || '').trim() || DEFAULT_LIFTS[i]))
+    return a
+  }, [lift1, lift2, lift3])
+
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
 
@@ -120,8 +125,10 @@ export default function Profile() {
     try {
       if (!cycleType) throw new Error('Pick a cycle type.')
       if (!cycleStart) throw new Error('Pick a start date.')
+      const data = await loadForExport()
+
       // Cycle target validation
-      const latestWeight = [...entries]
+      const latestWeight = [...(data || [])]
         .reverse()
         .find((e) => Number.isFinite(Number(e?.weight)))?.weight
 
@@ -139,7 +146,9 @@ export default function Profile() {
         }
       }
 
-      await startCycle(user.uid, { type: cycleType, startDateIso: cycleStart, targetWeightKg: cycleTarget })
+      const targetWeightKg = (cycleType === 'cutting' || cycleType === 'bulking') ? Number(cycleTarget) : null
+      await startCycle(user.uid, { type: cycleType, startDateIso: cycleStart, targetWeightKg })
+      setCycleTarget('')
 
       setMsg({ type: 'success', text: `Cycle started: ${titleCycle(cycleType)}.` })
     } catch (err) {
@@ -189,7 +198,7 @@ export default function Profile() {
   }
 
   async function loadForExport() {
-    if (loadedEntries) return
+    if (loadedEntries) return entries
     return new Promise((resolve, reject) => {
       const unsub = listenEntries(
         user.uid,
@@ -197,7 +206,7 @@ export default function Profile() {
           setEntries(data)
           setLoadedEntries(true)
           unsub()
-          resolve()
+          resolve(data)
         },
         (err) => {
           reject(err)
@@ -309,6 +318,18 @@ export default function Profile() {
               <input type="date" value={cycleStart} onChange={(e) => setCycleStart(e.target.value)} />
             </div>
 
+            {(cycleType === 'cutting' || cycleType === 'bulking') && (
+              <div className="field">
+                <label>Target weight (kg)</label>
+                <input
+                  inputMode="decimal"
+                  value={cycleTarget}
+                  onChange={(e) => setCycleTarget(e.target.value)}
+                  placeholder="e.g. 82.0"
+                />
+              </div>
+            )}
+
             <div className="field" style={{ minWidth: 220 }}>
               <label>Current</label>
               <input value={activeCycle ? `${titleCycle(activeCycle.type)} (since ${activeCycle.startDateIso})${(activeCycle.type === 'cutting' || activeCycle.type === 'bulking') && Number.isFinite(Number(activeCycle.targetWeightKg)) ? ` · target ${Number(activeCycle.targetWeightKg).toFixed(1)}kg` : ''}` : 'No active cycle'} readOnly />
@@ -332,6 +353,7 @@ export default function Profile() {
             <thead>
               <tr>
                 <th>Type</th>
+                <th>Target (kg)</th>
                 <th>Began</th>
                 <th>Ended</th>
                 <th>Status</th>
@@ -341,7 +363,7 @@ export default function Profile() {
             <tbody>
               {cycles.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="muted">No cycles yet. Start one above.</td>
+                  <td colSpan={6} className="muted">No cycles yet. Start one above.</td>
                 </tr>
               ) : (
                 cycles.map((c) => {
