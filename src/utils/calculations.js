@@ -117,17 +117,38 @@ export function buildDerivedSeries(entries, profile) {
   const sex = profile?.sex || null
   const height = profile?.height || null
 
-  const raw = entries.map((e) => ({
+  // Precompute lift series so we can forward-fill missing days for avgStrength.
+  // This avoids treating blanks as zero and keeps Avg Strength meaningful on non-training days.
+  const benchSeries = entries.map((e) => num(e.bench))
+  const squatSeries = entries.map((e) => num(e.squat))
+  const deadliftSeries = entries.map((e) => num(e.deadlift))
+
+  const forwardFill = (arr) => {
+    let prev = null
+    return arr.map((v) => {
+      if (Number.isFinite(v)) {
+        prev = v
+        return v
+      }
+      return prev
+    })
+  }
+
+  const benchFilled = forwardFill(benchSeries)
+  const squatFilled = forwardFill(squatSeries)
+  const deadliftFilled = forwardFill(deadliftSeries)
+
+  const raw = entries.map((e, i) => ({
     dateIso: e.dateIso,
     weight: num(e.weight),
     protein: num(e.protein),
     carbs: num(e.carbs),
     fats: num(e.fats),
-    bench: num(e.bench),
-    squat: num(e.squat),
-    deadlift: num(e.deadlift),
+    bench: benchSeries[i],
+    squat: squatSeries[i],
+    deadlift: deadliftSeries[i],
     calories: caloriesFromMacros(e),
-    avgStrength: avgStrength(e),
+    avgStrength: avgStrength({ bench: benchFilled[i], squat: squatFilled[i], deadlift: deadliftFilled[i] }),
     bfPct: bodyFatNavyPct({ sex, heightCm: height, entry: e, tripleEnabled: triple }),
   }))
 
