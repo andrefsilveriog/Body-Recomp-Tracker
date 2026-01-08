@@ -4,7 +4,7 @@ import { useAuth } from '../state/AuthContext.jsx'
 import { useProfile } from '../state/ProfileContext.jsx'
 import { listenEntries } from '../services/entries.js'
 import { buildDerivedSeries, computeWeeklyAnalysis } from '../utils/calculations.js'
-import { buildSampleEntries, buildSampleProfile } from '../utils/sampleData.js'
+import { buildSampleEntries, buildSampleProfile, buildSampleCycles, DEMO_SCENARIOS } from '../utils/sampleData.js'
 // cycles are stored inside the user's profile document
 import { todayIso } from '../utils/date.js'
 
@@ -45,6 +45,20 @@ export default function Dashboard({ view = 'dashboard' }) {
   const cycles = (Array.isArray(profile?.cycles) ? profile.cycles : [])
   const [error, setError] = useState(null)
 
+  // Demo scenario selector (only used when not logged in)
+  const [demoScenario, setDemoScenario] = useState(() => {
+    try {
+      return localStorage.getItem('brt_demoScenario') || 'cutting_optimal'
+    } catch {
+      return 'cutting_optimal'
+    }
+  })
+
+  useEffect(() => {
+    if (user) return
+    try { localStorage.setItem('brt_demoScenario', demoScenario) } catch {}
+  }, [demoScenario, user])
+
   useEffect(() => {
     setError(null)
     if (!user) return
@@ -54,13 +68,9 @@ export default function Dashboard({ view = 'dashboard' }) {
 
   // cycles are provided by ProfileContext snapshot
 
-  const demoProfile = useMemo(() => buildSampleProfile(), [])
-  const demoEntries = useMemo(() => buildSampleEntries(60), [])
-
-  const demoCycles = useMemo(() => {
-    if (!demoEntries?.length) return []
-    return [{ id: 'demo', type: 'cutting', targetWeightKg: 84, startDateIso: demoEntries[0].dateIso, endDateIso: null }]
-  }, [demoEntries])
+  const demoProfile = useMemo(() => buildSampleProfile(demoScenario), [demoScenario])
+  const demoEntries = useMemo(() => buildSampleEntries(84, demoScenario), [demoScenario])
+  const demoCycles = useMemo(() => buildSampleCycles(demoEntries, demoScenario), [demoEntries, demoScenario])
 
   const activeProfile = user ? profile : demoProfile
   const activeEntries = user ? entries : demoEntries
@@ -126,7 +136,24 @@ export default function Dashboard({ view = 'dashboard' }) {
     <>
       {!user && (
         <div className="notice info" style={{ marginTop: 14 }}>
-          <b>Demo mode:</b> This dashboard is showing 60 days of realistic sample data. Log in to start tracking your own.
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <b>Demo mode:</b> This dashboard is showing ~12 weeks of realistic sample data. Log in to start tracking your own.
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="muted">Scenario</span>
+              <select
+                className="input"
+                value={demoScenario}
+                onChange={(e) => setDemoScenario(e.target.value)}
+                style={{ height: 32, padding: '0 10px', maxWidth: 260 }}
+              >
+                {DEMO_SCENARIOS.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
       )}
 
