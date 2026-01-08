@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { collection, onSnapshot, orderBy, query, writeBatch, doc } from 'firebase/firestore'
 import { db } from '../firebase.js'
 import { useAuth } from '../state/AuthContext.jsx'
@@ -17,7 +18,8 @@ function normalizeAccountType(u) {
 
 export default function Admin() {
   const { user } = useAuth()
-  const { profile } = useProfile()
+  const { profile, loading: profileLoading } = useProfile()
+  const nav = useNavigate()
 
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -29,10 +31,17 @@ export default function Admin() {
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState(null)
 
-  const isAdmin = !!profile?.isAdmin
+  const isAdmin = !!profile?.isAdmin || profile?.accountType === 'admin'
 
   useEffect(() => {
     if (!user) return
+    if (profileLoading) return
+    if (!isAdmin) {
+      setUsers([])
+      setLoading(false)
+      setLoadError(null)
+      return
+    }
     setLoading(true)
     setLoadError(null)
 
@@ -51,7 +60,7 @@ export default function Admin() {
     )
 
     return () => unsub()
-  }, [user])
+  }, [user, isAdmin, profileLoading])
 
   const currentTypes = useMemo(() => {
     const map = {}
@@ -138,10 +147,30 @@ export default function Admin() {
 
   return (
     <>
+      {profileLoading && (
+        <div className="card">
+          <div className="small">Loading…</div>
+        </div>
+      )}
+
+      {!profileLoading && user && !isAdmin && (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>Not an Administrator</h2>
+          <div className="small" style={{ marginTop: 8 }}>
+            Sorry, but you’re not an Administrator.
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <button className="btn" onClick={() => nav('/dashboard')}>Back to dashboard</button>
+          </div>
+        </div>
+      )}
+
+      {!profileLoading && user && isAdmin && (
+        <>
       <div className="panel">
         <h2 style={{ margin: 0 }}>Administrator Panel</h2>
         <div className="small" style={{ marginTop: 6 }}>
-          Manage user account types. (Admin button is currently visible to everyone; permissions are enforced by Firestore rules.)
+          Manage user account types.
         </div>
       </div>
 
@@ -242,6 +271,8 @@ export default function Admin() {
           </table>
         </div>
       </div>
+        </>
+      )}
     </>
   )
 }

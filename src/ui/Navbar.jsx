@@ -1,10 +1,14 @@
 import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../state/AuthContext.jsx'
+import { useProfile } from '../state/ProfileContext.jsx'
 
 export default function Navbar() {
   const { user, logout } = useAuth()
+  const { profile } = useProfile()
   const nav = useNavigate()
+
+  const showAdmin = !!user && (!!profile?.isAdmin || profile?.accountType === 'admin')
 
   async function onLogout() {
     await logout()
@@ -29,7 +33,7 @@ export default function Navbar() {
           </div>
           {user && <NavLink to="/entry" className={({ isActive }) => isActive ? 'active' : ''}>Entry</NavLink>}
           {user && <NavLink to="/profile" className={({ isActive }) => isActive ? 'active' : ''}>Profile</NavLink>}
-          {user && <NavLink to="/admin" className={({ isActive }) => isActive ? 'active' : ''}>Admin</NavLink>}
+          {showAdmin && <NavLink to="/admin" className={({ isActive }) => isActive ? 'active' : ''}>Admin</NavLink>}
         </div>
 
         <div className="nav-actions">

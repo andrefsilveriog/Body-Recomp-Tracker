@@ -13,7 +13,6 @@ const DEFAULT_PROFILE = {
   liftNames: ['Bench Press','Squat','Deadlift'],
   cycles: [],
   isAdmin: false,
-          accountType: 'user',
   accountType: 'user',
   createdAt: null,
 }
@@ -65,14 +64,19 @@ export function ProfileProvider({ children }) {
           triplemeasurements: false,
           liftNames: ['Bench Press','Squat','Deadlift'],
           cycles: [],
-  isAdmin: false,
+          isAdmin: false,
           accountType: 'user',
-  accountType: 'user',
           createdAt: serverTimestamp(),
         })
         return
       }
       const data = snap.data()
+
+      const isAdmin = !!data.isAdmin || data.accountType === 'admin'
+      const accountType = (data.accountType === 'admin' || data.accountType === 'user')
+        ? data.accountType
+        : (isAdmin ? 'admin' : 'user')
+
       setProfile({
         email: data.email || user.email || '',
         sex: data.sex || '',
@@ -80,6 +84,8 @@ export function ProfileProvider({ children }) {
         triplemeasurements: !!data.triplemeasurements,
         liftNames: (Array.isArray(data.liftNames) && data.liftNames.length===3) ? data.liftNames : ['Bench Press','Squat','Deadlift'],
         cycles: normalizeCycles(data.cycles),
+        isAdmin,
+        accountType,
         createdAt: data.createdAt || null,
       })
       setLoading(false)

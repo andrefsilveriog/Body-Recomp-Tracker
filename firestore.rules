@@ -20,10 +20,15 @@ service cloud.firestore {
       allow read: if isSelf(userId) || isAdmin();
       allow create: if isSelf(userId);
 
-      // Users can update their own profile freely.
-      // Admins can update other users, but only account-related fields for now.
-      allow update: if isSelf(userId)
-        || (isAdmin() && request.resource.data.diff(resource.data).changedKeys().hasOnly(['isAdmin','accountType']));
+      // Users can update their own profile EXCEPT privileged fields.
+      // Admins can update any user's account-related fields (isAdmin/accountType).
+      allow update: if (
+        isSelf(userId)
+        && !request.resource.data.diff(resource.data).changedKeys().hasAny(['isAdmin','accountType'])
+      ) || (
+        isAdmin()
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['isAdmin','accountType'])
+      );
 
       // Admin-only delete (optional; keeps things safer by default)
       allow delete: if isAdmin();
