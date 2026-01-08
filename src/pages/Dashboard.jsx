@@ -12,7 +12,6 @@ import WeightTrendChart from '../components/Charts/WeightTrendChart.jsx'
 import StrengthChart from '../components/Charts/StrengthChart.jsx'
 import OverlayChart from '../components/Charts/OverlayChart.jsx'
 import WeeklyAnalysisTable from '../components/WeeklyAnalysisTable.jsx'
-import InsightsBanner from '../components/InsightsBanner.jsx'
 import DynamicStatusBanner from '../components/DynamicStatusBanner.jsx'
 
 function titleCycle(type) {
@@ -36,7 +35,7 @@ function fmt(n, d=1) {
   return n.toFixed(d)
 }
 
-export default function Dashboard({ view = 'dashboard' }) {
+export default function Dashboard() {
   const nav = useNavigate()
   const { user } = useAuth()
   const { profile } = useProfile()
@@ -165,12 +164,7 @@ export default function Dashboard({ view = 'dashboard' }) {
 
       {error && <div className="notice error" style={{ marginTop: 14 }}>{error}</div>}
 
-      {view === 'insights' && (
-        <>
-          <DynamicStatusBanner derived={derived} weekly={weekly} profile={activeProfile} currentCycle={currentCycle} />
-          <InsightsBanner derived={derived} weekly={weekly} profile={activeProfile || {}} currentCycle={currentCycle} />
-        </>
-      )}
+      <DynamicStatusBanner derived={derived} weekly={weekly} profile={activeProfile} currentCycle={currentCycle} />
 
       <div className="panel">
         <div className="panel-header">
