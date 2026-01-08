@@ -318,6 +318,15 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
 
   usePrompt(editMode && hasChanges, 'You have unsaved changes. Leave without saving?')
 
+  function cancelEdit() {
+    setEditMode(false)
+    setDraft({})
+    setDirty({})
+    setUndoStack([])
+    setRedoStack([])
+    setMsg(null)
+  }
+
   return (
     <div className="panel">
       <div className="panel-header">
@@ -344,11 +353,15 @@ export default function EntryTable({ sex, userId, entries, tripleEnabled, liftNa
 
           {!editMode ? (
             <button className="btn primary small" onClick={() => setEditMode(true)} disabled={saving}>
-              Edit
+              edit
+            </button>
+          ) : !hasChanges ? (
+            <button className="btn primary small" onClick={cancelEdit} disabled={saving}>
+              cancel
             </button>
           ) : (
             <button className="btn primary small" onClick={saveAll} disabled={!hasChanges || saving}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'saving…' : 'save'}
             </button>
           )}
         </div>

@@ -18,7 +18,7 @@ export default function Navbar() {
           <div className="badge" />
           <div>
             <h1>Body Recomposition Tracker</h1>
-            <div className="small">Trend-first logging: weight ↓, strength ↔/↑</div>
+            <div className="small">Created by Andre Gomes</div>
           </div>
         </div>
 

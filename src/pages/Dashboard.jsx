@@ -21,6 +21,14 @@ function titleCycle(type) {
   return String(type || '')
 }
 
+function fmtDateBr(dateIso) {
+  if (!dateIso || typeof dateIso !== 'string') return ''
+  const parts = dateIso.split('-')
+  if (parts.length !== 3) return dateIso
+  const [yyyy, mm, dd] = parts
+  return `${dd}/${mm}/${yyyy}`
+}
+
 
 function fmt(n, d=1) {
   if (!Number.isFinite(n)) return '—'
@@ -137,7 +145,9 @@ export default function Dashboard({ view = 'dashboard' }) {
         <div className="panel-header">
           <h2>Summary</h2>
           <button className="btn" type="button" onClick={onCycleClick} style={{ textTransform: 'none' }}>
-            {currentCycle ? titleCycle(currentCycle.type) : 'Create new cycle'}
+            {currentCycle
+              ? `${titleCycle(currentCycle.type)}${currentCycle.startDateIso ? ` since ${fmtDateBr(currentCycle.startDateIso)}` : ''}`
+              : 'Create new cycle'}
           </button>
         </div>
 
