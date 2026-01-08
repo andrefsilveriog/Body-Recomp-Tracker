@@ -13,6 +13,7 @@ import StrengthChart from '../components/Charts/StrengthChart.jsx'
 import OverlayChart from '../components/Charts/OverlayChart.jsx'
 import WeeklyAnalysisTable from '../components/WeeklyAnalysisTable.jsx'
 import InsightsBanner from '../components/InsightsBanner.jsx'
+import DynamicStatusBanner from '../components/DynamicStatusBanner.jsx'
 
 function titleCycle(type) {
   if (type === 'cut' || type === 'cutting') return 'Cutting'
@@ -138,6 +139,8 @@ export default function Dashboard({ view = 'dashboard' }) {
       {error && <div className="notice error" style={{ marginTop: 14 }}>{error}</div>}
 
       {view === 'insights' && (
+        <DynamicStatusBanner derived={derived} weekly={weekly} profile={activeProfile} currentCycle={currentCycle} />
+
         <InsightsBanner derived={derived} weekly={weekly} profile={activeProfile || {}} currentCycle={currentCycle} />
       )}
 
