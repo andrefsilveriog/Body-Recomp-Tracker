@@ -43,6 +43,14 @@ service cloud.firestore {
 }
 ```
 
+
+## Admin flag (WIP)
+The app includes an **Admin** page at `/admin` and an **Admin** button in the top navbar (next to **Profile**).
+
+- Each user profile document can include: `isAdmin: true | false`
+- For now, the Admin button is visible to all signed-in users (we’ll lock it down later).
+- To make a user an admin, set `users/{uid}.isAdmin = true` in Firestore.
+
 ## 2) Local dev
 ```bash
 npm install

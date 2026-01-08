@@ -29,6 +29,7 @@ export default function Navbar() {
           </div>
           {user && <NavLink to="/entry" className={({ isActive }) => isActive ? 'active' : ''}>Entry</NavLink>}
           {user && <NavLink to="/profile" className={({ isActive }) => isActive ? 'active' : ''}>Profile</NavLink>}
+          {user && <NavLink to=\"/admin\" className={({ isActive }) => isActive ? 'active' : ''}>Admin</NavLink>}
         </div>
 
         <div className="nav-actions">

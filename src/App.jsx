@@ -10,6 +10,7 @@ import Signup from './pages/Signup.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
 import Profile from './pages/Profile.jsx'
 import Entry from './pages/Entry.jsx'
+import Admin from './pages/Admin.jsx'
 
 export default function App() {
   return (
@@ -34,6 +35,16 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <Admin />
+              </ProtectedRoute>
+            }
+          />
+
 
           <Route
             path="/entry"

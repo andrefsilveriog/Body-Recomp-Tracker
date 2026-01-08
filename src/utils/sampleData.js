@@ -296,6 +296,7 @@ export function buildSampleProfile(scenarioId = 'cutting_optimal') {
     height: s.heightCm,
     tripleMeasurements: false,
     createdAt: new Date().toISOString(),
+    isAdmin: false,
     // lift labels shown in UI
     liftNames: ['Bench', 'Squat', 'Deadlift'],
   }

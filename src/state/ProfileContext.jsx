@@ -12,6 +12,7 @@ const DEFAULT_PROFILE = {
   triplemeasurements: false,
   liftNames: ['Bench Press','Squat','Deadlift'],
   cycles: [],
+  isAdmin: false,
   createdAt: null,
 }
 
@@ -62,6 +63,7 @@ export function ProfileProvider({ children }) {
           triplemeasurements: false,
           liftNames: ['Bench Press','Squat','Deadlift'],
           cycles: [],
+  isAdmin: false,
           createdAt: serverTimestamp(),
         })
         return
