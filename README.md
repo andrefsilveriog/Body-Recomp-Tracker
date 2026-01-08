@@ -73,3 +73,9 @@ Your site will be:
 `https://andrefsilveriog.github.io/Body-Recomp-Tracker/`
 
 > If you change the repo name, you must update `base` in `vite.config.js` to match.
+
+
+## Admin panel
+- Route: `/admin`
+- To grant admin access: set `isAdmin: true` on your user document (`users/{uid}`) in Firestore.
+- The provided `firestore.rules` allow admins to read the `/users` collection and update only `isAdmin`/`accountType` for other users.

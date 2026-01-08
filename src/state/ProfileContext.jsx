@@ -13,6 +13,8 @@ const DEFAULT_PROFILE = {
   liftNames: ['Bench Press','Squat','Deadlift'],
   cycles: [],
   isAdmin: false,
+          accountType: 'user',
+  accountType: 'user',
   createdAt: null,
 }
 
@@ -64,6 +66,8 @@ export function ProfileProvider({ children }) {
           liftNames: ['Bench Press','Squat','Deadlift'],
           cycles: [],
   isAdmin: false,
+          accountType: 'user',
+  accountType: 'user',
           createdAt: serverTimestamp(),
         })
         return
