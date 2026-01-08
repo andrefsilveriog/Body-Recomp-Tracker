@@ -222,7 +222,7 @@ export default function Dashboard() {
       {derived.length > 0 && (
         <div className="grid" style={{ marginTop: 14 }}>
           <div style={{ gridColumn: 'span 12' }}>
-            <TrendExplorerChart derived={derived} weekly={weekly} liftNames={liftNames} />
+        <TrendExplorerChart derived={derived} weekly={weekly} liftNames={liftNames} cycles={activeCycles} currentCycle={currentCycle} />
           </div>
         </div>
       )}

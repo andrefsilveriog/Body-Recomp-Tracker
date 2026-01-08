@@ -25,7 +25,10 @@ const COLOR_POOL = [
 function defaultConfig() {
   return {
     preset: 'overlay_default',
-    range: 'all',
+    range: 'all', // all | 14 | month | cycle | custom
+    cycleId: '',
+    customStart: '',
+    customEnd: '',
     series: [
       { metricId: 'weight_wma', axis: 'left' },
       { metricId: 'avgStrength_wma', axis: 'left' },
@@ -39,7 +42,7 @@ function clampSeries(series) {
   return cleaned.slice(0, 6)
 }
 
-export default function TrendExplorerChart({ derived, weekly, liftNames }) {
+export default function TrendExplorerChart({ derived, weekly, liftNames, cycles = [], currentCycle = null }) {
   const safeLiftNames = (Array.isArray(liftNames) && liftNames.length === 3)
     ? liftNames
     : ['Bench Press', 'Squat', 'Deadlift']
@@ -49,11 +52,19 @@ export default function TrendExplorerChart({ derived, weekly, liftNames }) {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (!raw) return defaultConfig()
       const parsed = JSON.parse(raw)
-      return {
+      const merged = {
         ...defaultConfig(),
         ...parsed,
         series: clampSeries(parsed?.series || defaultConfig().series),
       }
+
+      // Back-compat for older range options (30/60/90 days)
+      const r = String(merged.range || 'all')
+      if (r === '30') merged.range = 'month'
+      else if (r === '60' || r === '90') merged.range = 'all'
+      else if (!['all', '14', 'month', 'cycle', 'custom'].includes(r)) merged.range = 'all'
+
+      return merged
     } catch {
       return defaultConfig()
     }
@@ -63,24 +74,81 @@ export default function TrendExplorerChart({ derived, weekly, liftNames }) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)) } catch {}
   }, [cfg])
 
+  function fmtDateBr(iso) {
+    if (!iso || typeof iso !== 'string') return ''
+    const parts = iso.split('-')
+    if (parts.length !== 3) return iso
+    const [y, m, d] = parts
+    return `${d}/${m}/${y}`
+  }
+
+  function titleCycle(type) {
+    const t = String(type || '').trim().toLowerCase()
+    if (!t) return 'Cycle'
+    return t.charAt(0).toUpperCase() + t.slice(1)
+  }
+
+  const cyclesDesc = useMemo(() => {
+    const arr = (Array.isArray(cycles) ? cycles : []).filter(Boolean)
+    return [...arr].sort((a, b) => String(b?.startDateIso || '').localeCompare(String(a?.startDateIso || '')))
+  }, [cycles])
+
   const rangeOptions = [
     { id: 'all', label: 'All data' },
-    { id: '30', label: 'Last 30 days' },
-    { id: '60', label: 'Last 60 days' },
-    { id: '90', label: 'Last 90 days' },
+    { id: '14', label: 'Last 2 weeks' },
+    { id: 'month', label: 'Last month' },
+    { id: 'cycle', label: 'Select cycle' },
+    { id: 'custom', label: 'Select custom interval' },
   ]
+
+  const selectedCycle = useMemo(() => {
+    if (String(cfg.range || 'all') !== 'cycle') return null
+    if (cfg.cycleId) {
+      const hit = cyclesDesc.find((c) => c?.id === cfg.cycleId)
+      if (hit) return hit
+    }
+    return currentCycle || cyclesDesc[0] || null
+  }, [cfg.range, cfg.cycleId, currentCycle, cyclesDesc])
+
+  useEffect(() => {
+    if (String(cfg.range || 'all') !== 'cycle') return
+    if (selectedCycle && cfg.cycleId !== selectedCycle.id) {
+      setCfg((prev) => ({ ...prev, cycleId: selectedCycle.id }))
+    }
+  }, [cfg.range, cfg.cycleId, selectedCycle])
 
   const derivedView = useMemo(() => {
     if (!Array.isArray(derived) || !derived.length) return []
     const r = String(cfg.range || 'all')
-    const n = Number(r)
-    if (Number.isFinite(n) && n > 0) return derived.slice(Math.max(0, derived.length - n))
+    if (r === '14') return derived.slice(Math.max(0, derived.length - 14))
+    if (r === 'month') return derived.slice(Math.max(0, derived.length - 30))
+
+    if (r === 'cycle') {
+      const cyc = selectedCycle
+      if (!cyc?.startDateIso) return derived
+      const start = cyc.startDateIso
+      const end = cyc.endDateIso || derived[derived.length - 1]?.dateIso
+      if (!end) return derived
+      return derived.filter((d) => d?.dateIso >= start && d?.dateIso <= end)
+    }
+
+    if (r === 'custom') {
+      const start0 = cfg.customStart
+      const end0 = cfg.customEnd
+      if (!start0 || !end0) return derived
+      const start = start0 <= end0 ? start0 : end0
+      const end = start0 <= end0 ? end0 : start0
+      return derived.filter((d) => d?.dateIso >= start && d?.dateIso <= end)
+    }
+
     return derived
-  }, [derived, cfg.range])
+  }, [derived, cfg.range, cfg.customStart, cfg.customEnd, selectedCycle])
 
   const offset = useMemo(() => {
     if (!Array.isArray(derived) || !derived.length) return 0
-    return Math.max(0, derived.length - derivedView.length)
+    if (!derivedView.length) return 0
+    const idx = derived.indexOf(derivedView[0])
+    return idx >= 0 ? idx : 0
   }, [derived, derivedView])
 
   const metricDefs = useMemo(() => {
@@ -405,6 +473,31 @@ export default function TrendExplorerChart({ derived, weekly, liftNames }) {
     setCfg(defaultConfig())
   }
 
+  function onRangeChange(nextRange) {
+    const r = String(nextRange || 'all')
+    if (r === 'cycle') {
+      const fallbackId = currentCycle?.id || cyclesDesc[0]?.id || ''
+      setCfg((prev) => ({ ...prev, range: 'cycle', cycleId: prev.cycleId || fallbackId }))
+      return
+    }
+
+    if (r === 'custom') {
+      const lastIso = Array.isArray(derived) && derived.length ? derived[derived.length - 1].dateIso : new Date().toISOString().slice(0, 10)
+      const startIso = Array.isArray(derived) && derived.length
+        ? derived[Math.max(0, derived.length - 14)].dateIso
+        : lastIso
+      setCfg((prev) => ({
+        ...prev,
+        range: 'custom',
+        customStart: prev.customStart || startIso,
+        customEnd: prev.customEnd || lastIso,
+      }))
+      return
+    }
+
+    setCfg((prev) => ({ ...prev, range: r }))
+  }
+
   const labels = useMemo(() => derivedView.map((d) => d.dateIso), [derivedView])
 
   const weeklyStepSeries = useMemo(() => {
@@ -524,7 +617,7 @@ export default function TrendExplorerChart({ derived, weekly, liftNames }) {
   }
 
   return (
-    <div className="chart card" style={{ height: 420 }}>
+    <div className="chart card" style={{ height: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <div>
           <div className="card-title">Trend Explorer</div>
@@ -547,7 +640,7 @@ export default function TrendExplorerChart({ derived, weekly, liftNames }) {
           <select
             className="input"
             value={cfg.range}
-            onChange={(e) => setCfg((prev) => ({ ...prev, range: e.target.value }))}
+            onChange={(e) => onRangeChange(e.target.value)}
             style={{ height: 32, padding: '0 10px' }}
             aria-label="Range"
           >
@@ -555,6 +648,47 @@ export default function TrendExplorerChart({ derived, weekly, liftNames }) {
               <option key={r.id} value={r.id}>{r.label}</option>
             ))}
           </select>
+
+          {String(cfg.range) === 'cycle' && (
+            <select
+              className="input"
+              value={cfg.cycleId || ''}
+              onChange={(e) => setCfg((prev) => ({ ...prev, cycleId: e.target.value }))}
+              style={{ height: 32, padding: '0 10px', maxWidth: 320 }}
+              aria-label="Cycle"
+              disabled={!cyclesDesc.length}
+              title={cyclesDesc.length ? 'Filter to a cycle' : 'No cycles yet'}
+            >
+              {!cyclesDesc.length && <option value="">No cycles</option>}
+              {cyclesDesc.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {titleCycle(c.type)} since {fmtDateBr(c.startDateIso)}{c.endDateIso ? ` → ${fmtDateBr(c.endDateIso)}` : ''}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {String(cfg.range) === 'custom' && (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                className="input"
+                type="date"
+                value={cfg.customStart || ''}
+                onChange={(e) => setCfg((prev) => ({ ...prev, customStart: e.target.value }))}
+                style={{ height: 32, padding: '0 10px' }}
+                aria-label="Custom start"
+              />
+              <span className="small muted">to</span>
+              <input
+                className="input"
+                type="date"
+                value={cfg.customEnd || ''}
+                onChange={(e) => setCfg((prev) => ({ ...prev, customEnd: e.target.value }))}
+                style={{ height: 32, padding: '0 10px' }}
+                aria-label="Custom end"
+              />
+            </div>
+          )}
 
           <button className="btn" type="button" onClick={addSeries} style={{ height: 32, padding: '0 10px', textTransform: 'none' }}>
             + Series
@@ -656,7 +790,7 @@ export default function TrendExplorerChart({ derived, weekly, liftNames }) {
         })}
       </div>
 
-      <div className="chart-inner" style={{ height: 240, marginTop: 10 }}>
+      <div className="chart-inner" style={{ height: 320, marginTop: 10 }}>
         <Line data={data} options={options} />
       </div>
     </div>
