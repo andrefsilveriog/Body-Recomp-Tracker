@@ -8,9 +8,7 @@ import { buildSampleEntries, buildSampleProfile, buildSampleCycles, DEMO_SCENARI
 // cycles are stored inside the user's profile document
 import { todayIso } from '../utils/date.js'
 
-import WeightTrendChart from '../components/Charts/WeightTrendChart.jsx'
-import StrengthChart from '../components/Charts/StrengthChart.jsx'
-import OverlayChart from '../components/Charts/OverlayChart.jsx'
+import TrendExplorerChart from '../components/Charts/TrendExplorerChart.jsx'
 import WeeklyAnalysisTable from '../components/WeeklyAnalysisTable.jsx'
 import DynamicStatusBanner from '../components/DynamicStatusBanner.jsx'
 
@@ -224,13 +222,7 @@ export default function Dashboard() {
       {derived.length > 0 && (
         <div className="grid" style={{ marginTop: 14 }}>
           <div style={{ gridColumn: 'span 12' }}>
-            <WeightTrendChart derived={derived} />
-          </div>
-          <div style={{ gridColumn: 'span 12' }}>
-            <StrengthChart derived={derived} liftNames={liftNames} />
-          </div>
-          <div style={{ gridColumn: 'span 12' }}>
-            <OverlayChart derived={derived} />
+            <TrendExplorerChart derived={derived} weekly={weekly} liftNames={liftNames} />
           </div>
         </div>
       )}

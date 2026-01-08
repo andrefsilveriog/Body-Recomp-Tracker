@@ -144,6 +144,13 @@ export function buildDerivedSeries(entries, profile) {
     protein: num(e.protein),
     carbs: num(e.carbs),
     fats: num(e.fats),
+
+    // Navy measurement site averages (optional; often weekly). If the user has
+    // triple measurements enabled, these are the averaged values.
+    neckCm: siteAverage(e, 'neck', triple),
+    waistCm: siteAverage(e, 'waist', triple),
+    hipCm: siteAverage(e, 'hip', triple),
+
     bench: benchSeries[i],
     squat: squatSeries[i],
     deadlift: deadliftSeries[i],
