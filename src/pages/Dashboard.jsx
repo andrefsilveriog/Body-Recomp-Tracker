@@ -139,9 +139,10 @@ export default function Dashboard({ view = 'dashboard' }) {
       {error && <div className="notice error" style={{ marginTop: 14 }}>{error}</div>}
 
       {view === 'insights' && (
-        <DynamicStatusBanner derived={derived} weekly={weekly} profile={activeProfile} currentCycle={currentCycle} />
-
-        <InsightsBanner derived={derived} weekly={weekly} profile={activeProfile || {}} currentCycle={currentCycle} />
+        <>
+          <DynamicStatusBanner derived={derived} weekly={weekly} profile={activeProfile} currentCycle={currentCycle} />
+          <InsightsBanner derived={derived} weekly={weekly} profile={activeProfile || {}} currentCycle={currentCycle} />
+        </>
       )}
 
       <div className="panel">

@@ -199,9 +199,6 @@ function computeStatus(ctx) {
   if (Number.isFinite(adaptationPct) && adaptationPct < -15 && strengthTrend.key === 'rapid_decline') {
     const msg = `🚨 URGENT: TDEE dropped ${fmtNum(adaptationPct, 1)}% (from ${base} to ${tdee}). Take a 2-week diet break: increase from ${cal} to ~${tdee} cal/day.`
     cycleMisalignmentHint()
-    if (hasCycleTarget && Number.isFinite(weightToGoal) && weightToGoal > 2 && Number.isFinite(currentWeight) && Number.isFinite(targetWeight)) {
-      warnings.push(`🚨 Moving away from goal: currently ${fmtNum(currentWeight, 1)}kg vs target ${fmtNum(targetWeight, 1)}kg (${fmtNum(weightToGoal, 1)}kg over). Switch to a Cutting cycle.`)
-    }
     return { level: 'red', title: 'Metabolic Crash', emoji: '🚨', message: msg, warnings, notes }
   }
 
@@ -291,9 +288,6 @@ function computeStatus(ctx) {
   if (isBfKnown && weightTrend.key === 'rapid_gain' && bfTrend.key === 'increasing' && strengthTrend.key === 'increasing') {
     const msg = `⚠️ Excessive fat gain. Reduce from ${cal} to ~${Math.max(0, cal - 250)} cal/day while keeping protein around ${prot}g.`
     cycleMisalignmentHint()
-    if (hasCycleTarget && Number.isFinite(weightToGoal) && weightToGoal > 2 && Number.isFinite(currentWeight) && Number.isFinite(targetWeight)) {
-      warnings.push(`🚨 Moving away from goal: currently ${fmtNum(currentWeight, 1)}kg vs target ${fmtNum(targetWeight, 1)}kg (${fmtNum(weightToGoal, 1)}kg over). Switch to a Cutting cycle immediately.`)
-    }
     addGoalNote()
     return { level: 'yellow', title: 'Dirty Bulking', emoji: '⚠️', message: msg, warnings, notes }
   }
