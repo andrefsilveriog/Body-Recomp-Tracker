@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { parseDateIso } from '../utils/date.js'
+import { useDynamicStatusBannerConfig } from '../services/dynamicStatusBannerConfig.js'
+import { evaluateRules, formatTemplate } from '../utils/statusRuleEngine.js'
 
 function daysBetween(aIso, bIso) {
   // whole days between a - b (a newer than b => positive)
@@ -45,33 +47,40 @@ function cycleBadgeLabel(key) {
   return 'NO CYCLE'
 }
 
-function classifyWeight(deltaKgPerWeek) {
+function classifyWeight(deltaKgPerWeek, t) {
   if (!Number.isFinite(deltaKgPerWeek)) return { key: 'unknown', sym: '—', label: 'Unknown', value: null }
+  const stable = Number(t?.weight?.stableKgPerWeek ?? 0.2)
+  const rapid = Number(t?.weight?.rapidKgPerWeek ?? 1.0)
   const d = deltaKgPerWeek
-  if (Math.abs(d) <= 0.2) return { key: 'stable', sym: '→', label: 'Stable', value: d }
-  if (d < -1.0) return { key: 'rapid_loss', sym: '↓↓', label: 'Rapid loss', value: d }
-  if (d < -0.2) return { key: 'losing', sym: '↓', label: 'Losing', value: d }
-  if (d > 1.0) return { key: 'rapid_gain', sym: '↑↑', label: 'Rapid gain', value: d }
-  if (d > 0.2) return { key: 'gaining', sym: '↑', label: 'Gaining', value: d }
+  if (Math.abs(d) <= stable) return { key: 'stable', sym: '→', label: 'Stable', value: d }
+  if (d < -rapid) return { key: 'rapid_loss', sym: '↓↓', label: 'Rapid loss', value: d }
+  if (d < -stable) return { key: 'losing', sym: '↓', label: 'Losing', value: d }
+  if (d > rapid) return { key: 'rapid_gain', sym: '↑↑', label: 'Rapid gain', value: d }
+  if (d > stable) return { key: 'gaining', sym: '↑', label: 'Gaining', value: d }
   return { key: 'stable', sym: '→', label: 'Stable', value: d }
 }
 
-function classifyBf(deltaPct) {
+function classifyBf(deltaPct, t) {
   if (!Number.isFinite(deltaPct)) return { key: 'unknown', sym: '—', label: 'Unknown', value: null }
+  const stable = Number(t?.bf?.stablePctPoints ?? 0.5)
   const d = deltaPct
-  if (Math.abs(d) <= 0.5) return { key: 'stable', sym: '→', label: 'Stable', value: d }
-  if (d < -0.5) return { key: 'decreasing', sym: '↓', label: 'Decreasing', value: d }
-  if (d > 0.5) return { key: 'increasing', sym: '↑', label: 'Increasing', value: d }
+  if (Math.abs(d) <= stable) return { key: 'stable', sym: '→', label: 'Stable', value: d }
+  if (d < -stable) return { key: 'decreasing', sym: '↓', label: 'Decreasing', value: d }
+  if (d > stable) return { key: 'increasing', sym: '↑', label: 'Increasing', value: d }
   return { key: 'stable', sym: '→', label: 'Stable', value: d }
 }
 
-function classifyStrength(pctChange) {
+function classifyStrength(pctChange, t) {
   if (!Number.isFinite(pctChange)) return { key: 'unknown', sym: '—', label: 'Unknown', value: null }
+  const stable = Number(t?.strength?.stablePct ?? 2)
+  const up = Number(t?.strength?.increasePct ?? 2)
+  const down = Number(t?.strength?.declinePct ?? -2)
+  const rapidDown = Number(t?.strength?.rapidDeclinePct ?? -5)
   const p = pctChange
-  if (Math.abs(p) <= 2) return { key: 'stable', sym: '→', label: 'Stable', value: p }
-  if (p > 2) return { key: 'increasing', sym: '↑', label: 'Increasing', value: p }
-  if (p < -5) return { key: 'rapid_decline', sym: '↓↓', label: 'Rapid decline', value: p }
-  if (p < -2) return { key: 'declining', sym: '↓', label: 'Declining', value: p }
+  if (Math.abs(p) <= stable) return { key: 'stable', sym: '→', label: 'Stable', value: p }
+  if (p >= up) return { key: 'increasing', sym: '↑', label: 'Increasing', value: p }
+  if (p <= rapidDown) return { key: 'rapid_decline', sym: '↓↓', label: 'Rapid decline', value: p }
+  if (p <= down) return { key: 'declining', sym: '↓', label: 'Declining', value: p }
   return { key: 'stable', sym: '→', label: 'Stable', value: p }
 }
 
@@ -82,7 +91,7 @@ function badgeClass(key) {
   return 'cycle-badge none'
 }
 
-function computeStatus(ctx) {
+function computeStatusHardcoded(ctx) {
   const {
     cycle,
     hasCycleTarget,
@@ -386,11 +395,125 @@ function computeStatus(ctx) {
   }
 }
 
+function computeStatusFromConfig(ctx, config) {
+  const thresholds = config?.thresholds || {}
+  const global = config?.global || {}
+
+  const cal = Math.round(ctx.currentAvgCal || 0)
+  const prot = Math.round(ctx.currentProtein || 0)
+  const tdee = Math.round(ctx.calculatedTdee || 0)
+  const base = Math.round(ctx.baselineTdee || 0)
+
+  // Precompute some commonly used values for templates
+  const tmplCtx = {
+    ...ctx,
+    t: thresholds,
+    cal,
+    prot,
+    tdee,
+    base,
+    calMinus200: Math.max(0, cal - 200),
+    calMinus250: Math.max(0, cal - 250),
+    calMinus300: Math.max(0, cal - 300),
+    calMinus400: Math.max(0, cal - 400),
+    calPlus200: cal + 200,
+    calPlus250: cal + 250,
+    calPlus300: cal + 300,
+    calPlus400: cal + 400,
+    tdeeMinus500: Math.max(0, tdee - 500),
+    tdeePlus300: tdee + 300,
+    tdeePlus400: tdee + 400,
+  }
+
+  const status = evaluateRules(config || {}, tmplCtx)
+  const warnings = Array.isArray(status.warnings) ? [...status.warnings] : []
+  const notes = Array.isArray(status.notes) ? [...status.notes] : []
+
+  const isBfKnown = ctx.bfTrend?.key && ctx.bfTrend.key !== 'unknown'
+  const isStrKnown = ctx.strengthTrend?.key && ctx.strengthTrend.key !== 'unknown'
+
+  // Global informational notes
+  if (global?.missingSignalNotes) {
+    if (!ctx.hasNavyAny || !ctx.hasNavyInWindow || !isBfKnown) {
+      notes.push('Body fat trend is unavailable in this period. Add Navy measurements (neck/waist/hip) for more accurate status.')
+    }
+    if (!isStrKnown) {
+      notes.push('Strength trend is unavailable. Log your big-3 lifts (bench/squat/deadlift) to improve accuracy.')
+    }
+  }
+
+  // Built-in effects (optional, but configurable per status)
+  const effects = Array.isArray(status.effects) ? status.effects : []
+
+  const strings = config?.strings || {}
+  const absToGoal = Number.isFinite(ctx.weightToGoal) ? Math.abs(ctx.weightToGoal) : null
+
+  function applyGoalNote() {
+    if (!global?.goalNotes) return
+    const minKg = Number(thresholds?.goalNoteMinKgAway ?? 2)
+    if (!ctx.hasCycleTarget || !Number.isFinite(ctx.targetWeight) || !Number.isFinite(ctx.currentWeight) || !Number.isFinite(absToGoal)) return
+    if (absToGoal <= minKg) return
+    if (ctx.directionToGoal === 'need to lose') {
+      warnings.push(formatTemplate(strings?.goalNoteLose || `Note: You're {absToGoal:1}kg from your target of {targetWeight:1}kg. Consider switching to a Cut cycle if fat loss is the priority.`, { ...tmplCtx, absToGoal }))
+    } else if (ctx.directionToGoal === 'need to gain') {
+      warnings.push(formatTemplate(strings?.goalNoteGain || `Note: You're {absToGoal:1}kg from your target of {targetWeight:1}kg. Consider switching to a Bulk cycle if gaining is the priority.`, { ...tmplCtx, absToGoal }))
+    }
+  }
+
+  function applyCycleMisalignmentHint() {
+    if (!global?.cycleMisalignmentWarnings) return
+    const cycle = ctx.cycle
+    if (cycle === 'none') return
+    const weightTrend = ctx.weightTrend?.key
+    const bfTrend = ctx.bfTrend?.key
+    const strengthTrend = ctx.strengthTrend?.key
+
+    if (cycle === 'cut') {
+      if (weightTrend === 'stable' || weightTrend === 'gaining' || weightTrend === 'rapid_gain' || (isBfKnown && (bfTrend === 'stable' || bfTrend === 'increasing'))) {
+        warnings.push(strings?.cycleMisalignmentCut || '⚠️ Cycle misalignment: In a Cut cycle, weight should trend ↓ and body fat should trend ↓ over time.')
+      }
+    } else if (cycle === 'bulk') {
+      if (weightTrend === 'stable' || weightTrend === 'losing' || weightTrend === 'rapid_loss' || (isStrKnown && strengthTrend === 'stable')) {
+        warnings.push(strings?.cycleMisalignmentBulk || '⚠️ Cycle misalignment: In a Bulk cycle, weight should trend ↑ and strength should trend ↑ over time.')
+      }
+    } else if (cycle === 'maintain') {
+      if (weightTrend === 'rapid_gain' || weightTrend === 'rapid_loss') {
+        warnings.push(strings?.cycleMisalignmentMaintain || '⚠️ Cycle misalignment: In a Maintain cycle, weight should stay → (stable).')
+      }
+    }
+  }
+
+  for (const eff of effects) {
+    if (eff === 'goalNote') applyGoalNote()
+    if (eff === 'cycleMisalignmentHint') applyCycleMisalignmentHint()
+  }
+
+  return {
+    ...status,
+    warnings,
+    notes,
+  }
+}
+
 export default function DynamicStatusBanner({ derived, weekly, profile, currentCycle }) {
   const [rangeDays, setRangeDays] = useState(7)
   const [showInfo, setShowInfo] = useState(false)
 
+  const { config: bannerConfig } = useDynamicStatusBannerConfig()
+
+  const t = bannerConfig?.thresholds || {}
+  const wStable = Number(t?.weight?.stableKgPerWeek ?? 0.2)
+  const wRapid = Number(t?.weight?.rapidKgPerWeek ?? 1.0)
+  const bfStable = Number(t?.bf?.stablePctPoints ?? 0.5)
+  const sStable = Number(t?.strength?.stablePct ?? 2)
+  const sInc = Number(t?.strength?.increasePct ?? 2)
+  const sDec = Number(t?.strength?.declinePct ?? -2)
+  const sRapid = Number(t?.strength?.rapidDeclinePct ?? -5)
+
   const computed = useMemo(() => {
+    const thresholds = bannerConfig?.thresholds || {}
+    const minDaysForAssessment = Number(thresholds?.minDaysForAssessment ?? 14)
+
     const data = Array.isArray(derived) ? derived : []
     const derivedLen = data.length
     if (!derivedLen) {
@@ -430,17 +553,17 @@ export default function DynamicStatusBanner({ derived, weekly, profile, currentC
     const wCur = avgFinite(cur.map((d) => (Number.isFinite(d?.wma?.weight) ? d.wma.weight : d.weight)))
     const wPrev = avgFinite(prev.map((d) => (Number.isFinite(d?.wma?.weight) ? d.wma.weight : d.weight)))
     const wDelta = (Number.isFinite(wCur) && Number.isFinite(wPrev)) ? (wCur - wPrev) * (7 / rangeDays) : null
-    const weightTrend = classifyWeight(wDelta)
+    const weightTrend = classifyWeight(wDelta, thresholds)
 
     const bfCur = avgFinite(cur.map((d) => d.bfPct).filter(Number.isFinite))
     const bfPrev = avgFinite(prev.map((d) => d.bfPct).filter(Number.isFinite))
     const bfDelta = (Number.isFinite(bfCur) && Number.isFinite(bfPrev)) ? (bfCur - bfPrev) : null
-    const bfTrend = classifyBf(bfDelta)
+    const bfTrend = classifyBf(bfDelta, thresholds)
 
     const sCur = avgFinite(cur.map((d) => d?.wma?.avgStrength).filter(Number.isFinite))
     const sPrev = avgFinite(prev.map((d) => d?.wma?.avgStrength).filter(Number.isFinite))
     const sPct = (Number.isFinite(sCur) && Number.isFinite(sPrev) && sPrev !== 0) ? ((sCur - sPrev) / sPrev) * 100 : null
-    const strengthTrend = classifyStrength(sPct)
+    const strengthTrend = classifyStrength(sPct, thresholds)
 
     const currentAvgCal = avgFinite(cur.map((d) => d.calories).filter(Number.isFinite))
     const currentProtein = avgFinite(cur.map((d) => d.protein).filter(Number.isFinite))
@@ -476,6 +599,18 @@ export default function DynamicStatusBanner({ derived, weekly, profile, currentC
       ? ((calculatedTdee - baselineTdee) / baselineTdee) * 100
       : null
 
+    // Previous week TDEE and water-weight discrepancy (energy mismatch)
+    const weeksArrForPrev = weekly?.weeks || []
+    const prevWeekTdee = (weeksArrForPrev.length >= 2) ? weeksArrForPrev[weeksArrForPrev.length - 2]?.tdee : null
+    let waterDiscrepancyKcal = null
+    let expectedWeeklyChangeKg = null
+    if (Number.isFinite(prevWeekTdee) && Number.isFinite(currentAvgCal) && Number.isFinite(weeklyWeightChange)) {
+      const predictedEnergy = (prevWeekTdee - currentAvgCal) * 7
+      const actualEnergy = (-weeklyWeightChange) * 7700
+      waterDiscrepancyKcal = Math.abs(actualEnergy - predictedEnergy)
+      expectedWeeklyChangeKg = (currentAvgCal - prevWeekTdee) * 7 / 7700
+    }
+
     const baselineStrength = weekly?.baselineStrength ?? null
     const strengthDeclinePct = (Number.isFinite(baselineStrength) && Number.isFinite(sCur) && baselineStrength !== 0)
       ? ((baselineStrength - sCur) / baselineStrength) * 100
@@ -505,7 +640,7 @@ export default function DynamicStatusBanner({ derived, weekly, profile, currentC
 
     const daysLogged = last7.filter(isComplete).length
     const totalCompleteDays = data.filter(isComplete).length
-    const daysRemaining = Math.max(0, 14 - totalCompleteDays)
+    const daysRemaining = Math.max(0, minDaysForAssessment - totalCompleteDays)
 
     // Navy measurement availability
     const hasNavyAny = data.some((d) => Number.isFinite(d.neck) || Number.isFinite(d.waist) || Number.isFinite(d.hip) || Number.isFinite(d.bfPct))
@@ -542,11 +677,7 @@ export default function DynamicStatusBanner({ derived, weekly, profile, currentC
       }
     }
 
-    // prev week TDEE (independent expectation)
-    const weeksArr = weekly?.weeks || []
-    const prevWeekTdee = (weeksArr.length >= 2) ? weeksArr[weeksArr.length - 2]?.tdee : null
-
-    const status = computeStatus({
+    const status = computeStatusFromConfig({
       cycle,
       hasCycleTarget,
       currentAvgCal,
@@ -573,7 +704,10 @@ export default function DynamicStatusBanner({ derived, weekly, profile, currentC
       weeklyWeightChange,
       weeklyWeightLoss,
       prevWeekTdee,
-    })
+      waterDiscrepancyKcal,
+      expectedWeeklyChangeKg,
+      weekly,
+    }, bannerConfig)
 
     return {
       rangeDays,
@@ -600,7 +734,7 @@ export default function DynamicStatusBanner({ derived, weekly, profile, currentC
       lossRate,
       weeklyWeightChange,
     }
-  }, [derived, weekly, currentCycle, rangeDays])
+  }, [derived, weekly, profile, currentCycle, rangeDays, bannerConfig])
 
   const { status } = computed
 
@@ -742,27 +876,27 @@ export default function DynamicStatusBanner({ derived, weekly, profile, currentC
                 <div>
                   <div className="modal-subtitle">Weight trend (kg/week)</div>
                   <ul className="modal-list">
-                    <li>Stable: ±0.2 or less</li>
-                    <li>Losing/Gaining: &gt; 0.2</li>
-                    <li>Rapid loss/gain: &gt; 1.0</li>
+                    <li>Stable: ±{fmtNum(wStable, 2)} or less</li>
+                    <li>Losing/Gaining: &gt; {fmtNum(wStable, 2)}</li>
+                    <li>Rapid loss/gain: &gt; {fmtNum(wRapid, 2)}</li>
                   </ul>
                 </div>
 
                 <div>
                   <div className="modal-subtitle">Body fat trend (% points)</div>
                   <ul className="modal-list">
-                    <li>Stable: ±0.5 or less</li>
-                    <li>Decreasing/Increasing: &gt; 0.5</li>
+                    <li>Stable: ±{fmtNum(bfStable, 2)} or less</li>
+                    <li>Decreasing/Increasing: &gt; {fmtNum(bfStable, 2)}</li>
                   </ul>
                 </div>
 
                 <div>
                   <div className="modal-subtitle">Strength trend (% change)</div>
                   <ul className="modal-list">
-                    <li>Stable: ±2% or less</li>
-                    <li>Increasing: &gt; 2%</li>
-                    <li>Declining: &lt; -2%</li>
-                    <li>Rapid decline: &lt; -5%</li>
+                    <li>Stable: ±{fmtNum(sStable, 1)}% or less</li>
+                    <li>Increasing: &gt; {fmtNum(sInc, 1)}%</li>
+                    <li>Declining: &lt; {fmtNum(sDec, 1)}%</li>
+                    <li>Rapid decline: &lt; {fmtNum(sRapid, 1)}%</li>
                   </ul>
                 </div>
 

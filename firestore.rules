@@ -38,5 +38,12 @@ service cloud.firestore {
         allow read, write: if isSelf(userId);
       }
     }
+
+    // Global, app-wide configuration documents.
+    // Readable by any signed-in user; writable by admins only.
+    match /config/{docId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
   }
 }
